@@ -17,7 +17,7 @@ Imports: enrichR,
 	mgcv
 Suggests: monocle,
 	hexbin,
-	Seurat,
+	seurat,
 	destiny
 License: All rights reserved.
 Encoding: UTF-8
