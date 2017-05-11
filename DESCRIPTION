@@ -8,7 +8,6 @@ Imports: enrichR,
 	grid,
 	gridExtra,
 	colorspace,
-	Seurat,
 	ggplot2,
 	reshape2,
 	dplyr,
@@ -18,6 +17,7 @@ Imports: enrichR,
 	mgcv
 Suggests: monocle,
 	hexbin,
+	Seurat,
 	destiny
 License: All rights reserved.
 Encoding: UTF-8
