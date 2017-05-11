@@ -1,0 +1,9 @@
+# ignore Mac OS crap, data, images, R data, and Rstudio crap.
+.DS_store
+*.png
+*.pdf
+*.svg
+*.data
+.Rproj.user
+.Rhistory
+.RData

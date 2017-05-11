@@ -1,0 +1,111 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# # Retrieve test and training data
+dge = inventory( tag = "overview_clean_labeled" ) %>% readRDS
+dge13 = SubsetData( dge, cells.use = rownames( subset( FetchData( dge, "eday" ), eday==13.5 ) ) )
+table( dge13@ident ) # there's 2 small categories to remove
+dge13 %<>% SubsetData( ident.use = setdiff(levels(dge13@ident), c("PTH", "BLD4")) ) 
+table( dge13@ident ) 
+rm( dge ); gc()
+
+dge13_pth_nodub = inventory( tag = "classifier_experiment_nodub"   ) %>% readRDS
+dge13_pth_nodub = knn_classifier( dge_train = dge13, dge_test = dge13_pth_nodub, 
+                                  vars.all = NULL, my_transform = "PCA_20", 
+                                  k = 25, reject_prop = 0.01 )
+```
+
+#### Making figures
+
+```{r}
+# # Plot summaries
+my_cols = c( "hotpink", "firebrick2", "firebrick", "firebrick4", "hotpink4", 
+             "orange", "goldenrod",  "blue",
+             "cadetblue1", "cadetblue", "cadetblue3" )
+tsne_colored( dge13_pth_nodub, results_path, "classifier_ident", 
+              fig_name = "nodub_classifier_ident", cols.use = my_cols)
+tsne_colored( dge13_pth_nodub, results_path, "classifier_badness", 
+              fig_name = "nodub_classifier_badness" )
+tsne_colored( dge13_pth_nodub, results_path, colour = NULL, fig_name =       "plain_grey" )
+
+# # Reset identity to SNN
+dco = c(1, 3, 5, 7, 8, 2, 6, 0, 4 )  # desired cluster order, for heatmap to be diagonal
+dge13_pth_nodub %<>% SetIdent(ident.use = dge13_pth_nodub@data.info$res.0.5)
+for(ii in seq_along(dco)){ dge13_pth_nodub %<>% RenameIdent( old.ident.name = dco[ii], 
+                                                                   new.ident.name = letters[ii])}
+dge13_pth_nodub %<>% SetIdent( ident.use = factor(as.character(        dge13_pth_nodub@ident), 
+                                                        levels = sort(levels(dge13_pth_nodub@ident))) )
+
+
+
+# # Heatmaps contrasting clusters and feature plots for follow-up
+expected_totals = ( FetchData( dge13, "ident" ) %>% table %>% div_by_sum ) * length( dge13_pth_nodub@cell.names )
+expected_totals = c( 0.99*expected_totals, rejects = 0.01 * length( dge13_pth_nodub@cell.names ) )
+expected_totals = expected_totals[order(names(expected_totals))]
+frequencies = table(FetchData(dge13_pth_nodub, c("ident", "classifier_ident"))) 
+frequencies = sweep( frequencies, MARGIN = 2, STATS = expected_totals , FUN = "/" )
+frequencies_long = frequencies %>% melt %>% rename(c("value" = "Proportion_of_expected")) 
+p = ggplot( frequencies_long ) + 
+  ggtitle("Classifier results versus unsupervised results") + 
+  geom_tile(aes(x = classifier_ident, y = ident, fill = Proportion_of_expected))
+p = p + theme(axis.text.x = element_text(angle = 60, hjust = 1))
+ggsave( filename = file.path( results_path, "nodub_classifier_results_heat.pdf" ), p )
+ggsave( filename = file.path( results_path, "nodub_classifier_results_heat_bluered.pdf" ), p + scale_fill_gradient2(midpoint = 1) )
+
+
+
+# # Wheel plots
+cl = paste0( "classifier_probs_", levels( dge13@ident ) ); names(cl) = levels( dge13@ident ) 
+cl = cl[c( 1, 3, 2, 5, 4, 6, 7, 8, 10, 9 )]
+wheel_plot( dge = dge13_pth_nodub, results_path, fig_name = "nodub_wheel_plot", 
+            mlr_mod = NULL, class_labels = cl, 
+            colour_by = "classifier_badness" )
+wheel_plot( dge = dge13_pth_nodub, results_path, fig_name = "nodub_wheel_plot_density", 
+            mlr_mod = NULL, class_labels = cl, 
+            style = "hexagons" )
+
+
+# # More summary plots
+tsne_colored( dge13_pth_nodub, results_path, "ident", fig_name = "nodub_ident")
+badness_by_cluster_nodub = VlnPlot( dge13_pth_nodub, 
+                              features.plot = "classifier_badness", 
+                              group.by = "ident", 
+                              do.ret = T ) 
+badness_by_cluster_nodub[[1]]$labels$title = "Unfamiliarity by cluster" 
+badness_by_cluster_nodub[[1]]$labels$x = "Cell Type (unsupervised clustering)"
+badness_by_cluster_nodub[[1]]$labels$y = "Relative unfamiliarity (z-score)"
+badness_by_cluster_nodub[[1]] = badness_by_cluster_nodub[[1]] + scale_y_continuous(breaks=seq(-10, 10, 2))
+{
+  pdf( file.path( results_path, "badness_by_cluster_nodub.pdf" ))
+  print(badness_by_cluster_nodub)
+  dev.off()  
+}
+save_feature_plots( dge13_pth_nodub, results_path )
+
+# # Find markers for with rejected cells and other time-consuming things go at the end
+dge_to_test = 
+  list( rejects = dge13_pth_nodub %>% SubsetData( ident.use = "g"    ) %>% deseuratify_raw_data,
+        nearest = dge13           %>% SubsetData( ident.use = "TEC1" ) %>% deseuratify_raw_data ) %>%
+  dge_merge_list %>% seuratify_thy_data( results_path = file.path( results_path, "dge_to_test" ) )
+tecs_vs_rejects = FetchData( dge_to_test, "orig.ident" ) %>% vectorize_preserving_rownames 
+tecs_vs_rejects = setNames( as.character( tecs_vs_rejects ), names( tecs_vs_rejects ) )
+tecs_vs_rejects[ names(tecs_vs_rejects) %in% dge13@cell.names                 ] = "TEC"
+tecs_vs_rejects[ names(tecs_vs_rejects) %in% dge13_pth_nodub@cell.names ] = "reject"
+dge_to_test %<>% SetIdent( cells.use = names( tecs_vs_rejects ), 
+                           ident.use =        tecs_vs_rejects   )
+  
+de_genes = FindMarkers( dge_to_test, ident.1 = "reject", ident.2 = "TEC", test = "roc" )
+de_genes$gene = rownames( de_genes )
+de_genes = de_genes[order( de_genes$avg_diff, decreasing = T ), ]
+write.table( de_genes, file = file.path( results_path, "reject_markers.txt" ), 
+             col.names = T, row.names = T, quote = F, sep = "\t" )
+
+```
+

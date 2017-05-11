@@ -1,0 +1,98 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+  
+# # Retrieve Seurat objects with simple PCA-based pseudotime
+dge_cTEC = readRDS( inventory( tag = "simple_pt_cTEC" ) )
+dge_mTEC = readRDS( inventory( tag = "simple_pt_mTEC" ) )
+
+# # Save pseudotime in another variable; it will be overwritten
+dge_cTEC %<>% AddMetaData(FetchData(dge_cTEC, "pseudotime") %>% vectorize_preserving_rownames,
+                          col.name = "pseudotime_pca")
+dge_mTEC %<>% AddMetaData(FetchData(dge_mTEC, "pseudotime") %>% vectorize_preserving_rownames, 
+                          col.name = "pseudotime_pca")
+
+# # Run Monocle and save results in Seurat objects
+mp = list( reset_var_genes       = T, 
+           log_scale_expr_thresh = 0.1,
+           excess_disp           = 1,
+           num_mature_types      = NULL,
+           reduction_method      = "DDRTree" ) 
+rp_mTEC = file.path( results_path, "mTEC" ); dir.create.nice(rp_mTEC)
+rp_cTEC = file.path( results_path, "cTEC" ); dir.create.nice(rp_cTEC)
+mobj_mTEC = call_monocle_on_seurat( dge_mTEC, rp_mTEC, monocle_params = mp, earliest_day = 10.5 )
+mobj_cTEC = call_monocle_on_seurat( dge_cTEC, rp_cTEC, monocle_params = mp, earliest_day = 10.5 )
+
+dge_mTEC = add_pseudotime_to_seurat( dge_mTEC, pt_obj = mobj_mTEC )
+dge_cTEC = add_pseudotime_to_seurat( dge_cTEC, pt_obj = mobj_cTEC )
+
+# # Output results comparing Monocle with simple PCA-based approach
+bv = paste0("branch_viz_", 1:2)
+
+tsne_colored( dge_mTEC, rp_mTEC, "eday" )
+tsne_colored( dge_mTEC, rp_mTEC, "pseudotime" )
+tsne_colored( dge_mTEC, rp_mTEC, "pseudotime_pca" )
+tsne_colored( dge_mTEC, rp_mTEC, "branch" )
+tsne_colored( dge_mTEC, rp_mTEC, "eday",           axes = bv, axes_description = "branch_viz" )
+tsne_colored( dge_mTEC, rp_mTEC, "pseudotime",     axes = bv, axes_description = "branch_viz" )
+tsne_colored( dge_mTEC, rp_mTEC, "pseudotime_pca", axes = bv, axes_description = "branch_viz" )
+tsne_colored( dge_mTEC, rp_mTEC, "branch",         axes = bv, axes_description = "branch_viz" )
+save_feature_plots( dge_mTEC, rp_mTEC )
+save_feature_plots( dge_mTEC, rp_mTEC, axes = bv, axes_description = "branch_viz" )
+
+p = ggplot( data = FetchData( dge_mTEC, c(bv, "pseudotime") ) ) +
+  geom_density2d ( mapping = aes_string( bv[1], bv[2] ) ) +
+  geom_point ( mapping = aes_string( bv[1], bv[2], color = "pseudotime" ) ) +
+  scale_color_gradientn( colors = blue_red )
+ggsave( file.path( rp_mTEC, "monocle_concentration.pdf"), p )
+
+tsne_colored( dge_cTEC, rp_cTEC, "eday" )
+tsne_colored( dge_cTEC, rp_cTEC, "pseudotime" )
+tsne_colored( dge_cTEC, rp_cTEC, "pseudotime_pca" )
+tsne_colored( dge_cTEC, rp_cTEC, "branch" )
+tsne_colored( dge_cTEC, rp_cTEC, "eday",           axes = bv, axes_description = "branch_viz" )
+tsne_colored( dge_cTEC, rp_cTEC, "pseudotime",     axes = bv, axes_description = "branch_viz" )
+tsne_colored( dge_cTEC, rp_cTEC, "pseudotime_pca", axes = bv, axes_description = "branch_viz" )
+tsne_colored( dge_cTEC, rp_cTEC, "branch",         axes = bv, axes_description = "branch_viz" )
+save_feature_plots( dge_cTEC, rp_cTEC )
+save_feature_plots( dge_cTEC, rp_cTEC, axes = bv, axes_description = "branch_viz" )
+p = ggplot( data = FetchData( dge_cTEC, c(bv, "pseudotime") ) ) +
+  geom_density2d ( mapping = aes_string( bv[1], bv[2] ) ) +
+  geom_point ( mapping = aes_string( bv[1], bv[2], color = "pseudotime" ) ) +
+  scale_color_gradientn( colors = blue_red )
+ggsave( file.path( rp_cTEC, "monocle_concentration.pdf"), p )
+
+p_pseudotime_compare_mTEC = dge_mTEC %>% FetchData(c("pseudotime", "pseudotime_pca", "branch")) %>% 
+  dplyr::rename( pseudotime_monocle = pseudotime ) %>% ggplot
+p_pseudotime_compare_mTEC = p_pseudotime_compare_mTEC + 
+  geom_point(aes(pseudotime_monocle, pseudotime_pca, colour = branch))
+ggsave( file.path( results_path, "pseudotime_compare_mTEC.pdf" ), p_pseudotime_compare_mTEC )
+
+p_pseudotime_compare_cTEC = dge_cTEC %>% FetchData(c("pseudotime", "pseudotime_pca", "branch")) %>% 
+  dplyr::rename( pseudotime_monocle = pseudotime ) %>% ggplot
+p_pseudotime_compare_cTEC = p_pseudotime_compare_cTEC + 
+  geom_point(aes(pseudotime_monocle, pseudotime_pca, colour = branch))
+ggsave( file.path( results_path, "pseudotime_compare_cTEC.pdf" ), p_pseudotime_compare_cTEC )
+
+gene_corr_cTEC = cor( dge_cTEC@data %>% as.matrix %>% t, 
+                      dge_cTEC@data.info[c( "pseudotime", "pseudotime_pca" )] %>% as.matrix ) %>% as.data.frame
+gene_corr_cTEC$gene = rownames(gene_corr_cTEC)
+gene_corr_cTEC %<>% subset( !is.na(pseudotime)&!is.na(pseudotime_pca) )
+p = outlier_labeled_scatterplot( gene_corr_cTEC, prop_label = 0.002 ) 
+ggsave( file.path( rp_cTEC, "gene_corr_monocle_vs_PCA.pdf" ), p )
+
+gene_corr_mTEC = cor( dge_mTEC@data %>% as.matrix %>% t, 
+                      dge_mTEC@data.info[c( "pseudotime", "pseudotime_pca" )] %>% as.matrix ) %>% as.data.frame
+gene_corr_mTEC$gene = rownames(gene_corr_mTEC)
+gene_corr_mTEC %<>% subset( !is.na(pseudotime)&!is.na(pseudotime_pca) )
+p = outlier_labeled_scatterplot( gene_corr_mTEC, prop_label = 0.002 ) 
+ggsave( file.path( rp_mTEC, "gene_corr_monocle_vs_PCA.pdf" ), p )
+
+```

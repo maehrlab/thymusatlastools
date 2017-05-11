@@ -1,0 +1,99 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+####A function specific to this analysis
+
+```{r}
+default_params = expand.grid( cc_method = c( "average" ),
+                              excess_var_cutoff = c( 0.5 ),
+                              log_expr_cutoff = c( 0.1 ), 
+                              prop_genes_to_select = NA, 
+                              num_genes_to_select = NA, 
+                              var_gene_method = "seurat",
+                              num_pc = c( 8 ), 
+                              clust_method = "SNN",
+                              clust_granularities_as_string = "0.5",
+                              plot_all_var_genes = F,
+                              stringsAsFactors = F)
+
+# # Add early samples and fill in tSNE embedding.
+add_10_11_il7 = function( dge, results_path ){
+  
+  il7_pos = function(X) X[, X["Il7",]>0 ]
+  
+  new_dge = c( "time_sorted_10", "time_sorted_11" ) %>% 
+    get_sample_groups( combine = T ) %>% 
+    load_thymus_profiling_data %>% 
+    lapply( il7_pos ) %>%
+    c( list( overview_tecs = deseuratify_raw_data( dge ) ) ) %>%
+    dge_merge_list %>% 
+    seuratify_thy_data( results_path ) %>%
+    explore_embeddings( results_path, all_params = default_params, test_mode = F )
+  
+  new_dge %<>% add_maehrlab_metadata("eday")
+  return( new_dge )
+}
+
+```
+
+####Data retrieval & preprocessing
+
+```{r}
+results_path = Sys.getenv("FREEZR_DESTINATION")
+
+# Form various subsets and combinations with whole-thymus TECs
+dge_whole_TECs = inventory(tag = "whole_plus_sorted_16_labeled") %>% readRDS
+# If there's any other cluster, for example blood doublets, this leaves it out.
+cu = dge_whole_TECs@data.info %>% subset( as.character(cell_type) %in% c("cTEC", "mTEC") ) %>% rownames
+dge_whole_TECs %<>% SubsetData( cells.use = cu ); rm(cu)
+# Attempts to remove mTEC-cTEC doublets using a predetermined gene-list.
+dge_whole_TECs = remove_TEC_doublets( dge_whole_TECs,
+                                      results_path = file.path( results_path, "whole_dub" ),
+                                      reject_rate = 0.05 )$dge
+
+
+```
+
+#### Separate analysis of mTECs and cTECs
+
+```{r}
+#' Separate maturation analysis of mTECs and cTECs. 
+#'
+#' method should be "PCA", "monocle", or "DPT".
+separate_analysis = function( dge, results_path, dge_description, add_early_or_not, current_cell_type, method ){
+  cu = dge %>% FetchData("cell_type") %>% subset( as.character( cell_type ) %in% current_cell_type ) %>% rownames
+  dge = SubsetData( dge, cells.use = cu ); rm( cu )
+  rp_mini = file.path( results_path, paste0( dge_description, "_", current_cell_type ) )
+  if( add_early ){
+    rp_mini %<>% paste0( "_10_11_il7" )
+    dge %<>% add_10_11_il7( results_path = rp_mini )
+  } 
+  
+  rp_mini %<>% paste( method, sep = "_" )
+  cat( "Doing ", rp_mini, "\n" )
+  dge %<>% explore_embeddings( results_path = rp_mini, all_params = default_params, test_mode = F )
+  dge %<>% add_maehrlab_metadata( "eday" )
+  master_pt( dge, results_path = rp_mini, method = method, earliest_day = min(FetchData(dge, "eday")[[1]]))
+}
+
+
+# # Whole data with sorted day 16.5 data added
+cell_types = c("mTEC", "cTEC")
+pca_or_not = c( T, F )
+add_early_or_not = F # c( T, F )
+dge_list = cell_types; names(dge_list) = cell_types
+for( method in "DPT" ){
+  for( current_cell_type in cell_types ){
+    for( add_early in add_early_or_not ){
+      dge_list[current_cell_type] = 
+        separate_analysis( dge = dge_whole_TECs, results_path, dge_description = "whole_tecs", 
+                           add_early_or_not, cell_types, pca_or_not)
+    }
+  }
+}
+
+```

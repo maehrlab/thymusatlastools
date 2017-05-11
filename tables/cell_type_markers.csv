@@ -1,0 +1,38 @@
+cell_type,marker
+AntigenPresentation,B2m
+AntigenPresentation,Cd74
+AntigenPresentation,H2ab1
+cell cycle,Cenpe
+cell cycle,Tuba1c
+cTEC,Cd249
+Endothelial,Egfl7
+Endothelial,Emcn
+Endothelial,Esam
+GeneralEpithelial,Epcam
+Housekeeping,Actb
+mature TEC,Aire
+mTEC,Nfkbia
+mTEC,Tbata
+mTEC,Ubd
+Thymus,Ctsl
+Thymus,Foxn1
+Thymus,Il7
+Thymus,Krt17
+Thymus,Krt5
+Thymus,Krt8
+Thymus,Pdlim1
+Thymus,Prss16
+Thymus,Psmb11
+NK cells,Klrd1
+BloodLeukocytes,Cd52
+BloodLeukocytes,Plac8
+BloodLeukocytes,Ptprc
+BloodMacrophages,Apoe
+BloodMacrophages,Ctsb
+BloodMacrophages,Lyz2
+Tcell,Ptcra
+Tcell,Cd25  
+Tcell,Cd3
+Tcell,Cd44
+Tcell,Cd8a
+Tcell,Cd4

@@ -1,0 +1,58 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+####Data acquisition and setup
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# # Retrieve mTECs / cTECs from maturation analysis; assemble expression stats
+dge = readRDS( inventory( inv_location = today_dest, tag = "whole_plus_sorted_16_labeled" ) )
+misc_summary_info( dge, results_path )
+prop_expr = aggregate.nice( t( dge@data > 0 ), FetchData(dge, "cell_type"), mean ) %>% t %>% as.data.frame
+
+# # Retrieve and clean RL list
+ramilowski = read.table( file.path( PATH_TO_TABLES, "LigandReceptor_Ramilowski2015_mouse.txt" ), 
+                         header = T, sep="\t", stringsAsFactors = F )
+ramilowski$Ligand.ApprovedSymbol = NULL
+ramilowski$Receptor.ApprovedSymbol = NULL
+semicolon_collapse = function(x) paste0(x, collapse = "; ")
+ramilowski$ligand_mouse = ave( ramilowski$ligand_mouse, 
+                               ramilowski$receptor_mouse, 
+                               FUN = semicolon_collapse  )
+ramilowski = ramilowski[2:1]
+ramilowski = ramilowski[!duplicated(ramilowski), ]
+ramilowski = ramilowski[!is.na(ramilowski$receptor_mouse), ]
+  
+# # Find potential TEC induction/development signals by looking for
+# # receptors specific to cTECs or mTECs
+ramilowski$receptor_prop_expr_cTEC = prop_expr[ramilowski$receptor_mouse, "cTEC"]
+ramilowski$receptor_prop_expr_mTEC = prop_expr[ramilowski$receptor_mouse, "mTEC"]
+ramilowski[["cTEC/mTEC"]] = ramilowski$receptor_prop_expr_mTEC / ramilowski$receptor_prop_expr_cTEC
+ct = FetchData(dge, "cell_type")[[1]] 
+fish_p = function( x ) {
+  if( any(x>0)){
+    return(fisher.test( x, y = ct )$p.value)
+  } else {
+    return( 1 )
+  }
+}
+ramilowski$pval = apply( FetchDataZeroPad(dge, ramilowski$receptor_mouse) > 0, MARGIN = 2, fish_p ) 
+ramilowski$qval = stats::p.adjust(ramilowski$pval)
+ramilowski = subset( ramilowski, qval < 0.01 )
+ramilowski = ramilowski[order(ramilowski[["cTEC/mTEC"]]), ]
+ramilowski = ramilowski[c( "receptor_mouse", 
+                           "ligand_mouse", 
+                           "cTEC/mTEC",
+                           "receptor_prop_expr_cTEC", 
+                           "receptor_prop_expr_mTEC", 
+                           "qval")]
+write.table( ramilowski, file =  file.path( results_path, "Receptors_mTEC_vs_cTEC.txt" ),
+             sep = "\t", row.names = F, col.names = T, quote = F )
+
+```
+  

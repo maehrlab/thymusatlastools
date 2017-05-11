@@ -1,0 +1,60 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# # Retrieve Seurat obj with tSNE redone 
+path_to_Seurat_obj = inventory( tag = "overview_clean" )
+dge = readRDS( path_to_Seurat_obj )
+
+# # Relabel it now that we have new cluster calls
+dge = Seurat::SetIdent( dge, ident.use = as.character( dge@data.info$res.0.5 ) )
+old_ident_size_ordered = as.character( names( sort( table(dge@ident), decreasing = T) ) )
+for( i in seq_along( old_ident_size_ordered ) ){
+  dge = Seurat::RenameIdent( dge, 
+                             old.ident.name = old_ident_size_ordered[i],
+                             new.ident.name = letters[i] )
+}
+
+new_ident = c( "TEC1", "BLD1",  "BLD2", "BLD3", "BLD4", "TEC2", "MES",  "BLD5",  "BLD6","TEC3", "PTH", "END")
+old_ident = letters[seq_along(new_ident)] 
+names(new_ident) = old_ident
+for( i in 1:length( unique( dge@ident ) ) ){
+  dge = Seurat::RenameIdent( dge, old_ident[i], new_ident[i] )
+}
+custom_feature_plot( dge, "ident" )
+dge %<>% SetIdent( ident.use = factor( as.character( dge@ident ), levels = sort( levels( dge@ident ) ) ) )
+my_cols = c( "deeppink", "firebrick2", "firebrick", "firebrick4", "coral3", "deeppink4", 
+              "orange", "goldenrod",  "blue" ,
+             "cadetblue1", "cadetblue", "cadetblue3" )
+
+# # Save labeled DGE and featureplot with all cells
+saveRDS( dge, file.path( results_path, "dge_labeled.data" ) )
+
+tsne_colored( dge, results_path, fig_name = "plain_grey" )
+
+p_feat = custom_feature_plot( dge, "ident", cols.use = my_cols ) + ggtitle("Main cell types")
+print( p_feat )
+ggsave( filename = file.path( results_path, "overview_clean.pdf"),
+        plot = p_feat,
+        width = 8, height = 7)
+ggsave( filename = file.path( results_path, "overview_clean_no_leg.pdf"),
+        plot = p_feat + theme(legend.position = "none"),
+        width = 8, height = 7)
+
+p_eday = custom_feature_plot( dge, "eday", cols.use = Thanksgiving_colors ) + ggtitle("Embryonic day")
+ggsave( filename = file.path( results_path, "overview_eday.pdf"),
+        plot = p_eday,
+        width = 8, height = 7)
+p_eday = custom_feature_plot( dge, "eday", cols.use = Thanksgiving_colors ) + ggtitle("Embryonic day")
+ggsave( filename = file.path( results_path, "overview_eday_no_leg.pdf"),
+        plot = p_eday + theme(legend.position = "none"),
+        width = 8, height = 7)
+
+
+```

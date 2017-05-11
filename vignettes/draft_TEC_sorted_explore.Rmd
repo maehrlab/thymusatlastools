@@ -1,0 +1,71 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# Get sorted data 
+dge_sorted = c( "time_sorted_10", "time_sorted_11", "time_sorted_12", "time_sorted_13" ) %>% 
+  get_sample_groups( combine = T ) %>% 
+  load_thymus_profiling_data %>% 
+  dge_merge_list %>% 
+  seuratify_thy_data( results_path )
+dge_sorted %<>% add_maehrlab_metadata( "eday" )
+
+# # Fill in tSNE and PCA et cetera
+default_params = expand.grid( cc_method = c( "average" ),
+                              excess_var_cutoff = 0.5,
+                              log_expr_cutoff = 0.1 , 
+                              prop_genes_to_select = NA, 
+                              num_genes_to_select = NA, 
+                              var_gene_method = "seurat",
+                              num_pc = 8, 
+                              clust_method = "SNN",
+                              clust_granularities_as_string = "0.5",
+                              plot_all_var_genes = F,
+                              stringsAsFactors = F )
+dge_sorted %<>% explore_embeddings( results_path = file.path( results_path, "with_il7_neg" ), default_params)
+old_tsne = FetchData(dge_sorted, c( "tSNE_1", "tSNE_2" )) %>% rename( c( "tSNE_1"="old_tsne_1", "tSNE_2"="old_tsne_2" ) )
+dge_sorted %<>% AddMetaData( old_tsne )
+    
+
+
+# document, gate on IL7, and document again
+tsne_colored( dge_sorted, results_path = file.path( results_path, "with_il7_neg" ), colour = "eday", cols.use = Thanksgiving_colors,
+              axes = c( "old_tsne_1", "old_tsne_2" ) )
+tsne_colored( dge_sorted, results_path = file.path( results_path, "with_il7_neg" ), colour = "Il7" , 
+              axes = c( "old_tsne_1", "old_tsne_2" ) )
+
+dge_sorted %>% FetchData(c("Il7", "eday")) %>% mutate(Il7 = Il7>0) %>% table %>% 
+  write.table(file.path(results_path, "Il7_before_preproc.txt"), quote = F, sep = "\t")
+
+cu = dge_sorted %>% FetchData(c("Il7", "eday")) %>% subset( eday > 12 | Il7 > 0 ) %>% rownames
+dge_sorted %<>% SubsetData( cells.use = cu )
+
+tsne_colored( dge_sorted, results_path = file.path( results_path, "no_il7_neg" ), colour = "eday", cols.use = Thanksgiving_colors,
+              axes = c( "old_tsne_1", "old_tsne_2" ) )
+tsne_colored( dge_sorted, results_path = file.path( results_path, "no_il7_neg" ), colour = "Il7" , 
+              axes = c( "old_tsne_1", "old_tsne_2" ) )
+
+dge_sorted %>% FetchData(c("Il7", "eday")) %>% mutate(Il7 = Il7>0) %>% table %>%
+  write.table(file.path(results_path, "Il7_after_preproc.txt"), quote = F, sep = "\t")
+
+
+# # Fill in tSNE and PCA et cetera
+all_params = expand.grid( cc_method = c( "average" ),
+                          excess_var_cutoff = c( 0.5, 0.8, 1.2 ),
+                          log_expr_cutoff = c( 0.1 ), 
+                          prop_genes_to_select = NA, 
+                          num_genes_to_select = NA, 
+                          var_gene_method = "seurat",
+                          num_pc = c( 8, 12, 16 ), 
+                          clust_method = "SNN",
+                          clust_granularities_as_string = "0.5",
+                          plot_all_var_genes = F,
+                          stringsAsFactors = F)
+dge_sorted %<>% explore_embeddings( results_path = results_path, all_params)
+```

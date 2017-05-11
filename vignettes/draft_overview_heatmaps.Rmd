@@ -1,0 +1,161 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+####Setup
+
+Get data; set up colors as in overview tSNE
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )  
+
+
+# # Retrieve Seurat obj and plot thymus makeup over time
+path_to_Seurat_obj = freezr::inventory( tag = "overview_clean_labeled" )
+dge = readRDS( path_to_Seurat_obj )
+simple_ident = FetchData(dge, "ident") %>% mutate(simple_ident = substr(ident, 1, 3)) %>% subset(select = "simple_ident")
+rownames(simple_ident) = dge@cell.names
+dge = AddMetaData(dge, simple_ident)
+
+my_cols = c( "deeppink", "firebrick2", "firebrick", "firebrick4", "coral3", "deeppink4", 
+              "orange", "goldenrod",  "blue" ,
+             "cadetblue1", "cadetblue", "cadetblue3" )
+names(my_cols) = c(paste0("BLD", 1:6), "END", "MES", "PTH", paste0("TEC", 1:3))
+my_cols = c(my_cols, "BLD" = "red", "TEC" = "cadetblue1", 
+            "Cd45_+" = "red", "Cd45-Epcam+" = "cadetblue1", "Cd45-Epcam-" = "goldenrod")
+
+# # Generate dendrogram for paper
+{
+  pdf(file.path(results_path, "cluster_dendrogram.pdf"))
+  dge = BuildClusterTree(dge)
+  dev.off()
+}
+extract_tip_order = function( ape_phylo_object ){
+  is_tip = tree$edge[,2] <= length(tree$tip.label)
+  ordered_tips = tree$edge[is_tip, 2]
+  tree$tip.label[ordered_tips]
+}
+smaller_types = extract_tip_order(dge@cluster.tree[[1]])
+main_types = unique(substr(smaller_types, start = 1, stop = 3))
+clusters_to_heatmap = smaller_types 
+
+# # Simplify labels
+tsne_colored( dge, results_path, colour = "simple_ident", cols.use = my_cols )
+tsne_colored( dge, results_path, colour = "simple_ident", cols.use = my_cols, subset_id = paste0("TEC", 1:3) )
+```
+
+####Thymus composition -- pie charts
+
+```{r}
+ggpie = function( X, main = "", col = NULL, label = T ){
+  X$at = 0
+  X = X[order(X$ident), ]
+  for(day in unique(X$eday)){
+    idx = (X$eday == day)
+    X[idx, "at"] = 100 - ( cumsum(X[idx, "percent"]) - X[idx, "percent"]/2 )
+  }
+  p = ggplot(X) + ggtitle( main) + 
+    geom_bar( aes( y = percent, x = factor(""), fill = ident ), position = "stack", stat='identity' ) + 
+    coord_polar(theta = "y") +
+    facet_wrap(~eday) + scale_fill_manual( values = col ) + theme(axis.ticks = element_blank(), 
+                                                                 axis.text.y = element_blank(),
+                                                                 axis.text.x = element_blank()) 
+  if( label ) { p = p + geom_text( aes( y = at, x = 1.5, label = percent ) ) }
+  return(p)
+} 
+
+# Overview clusters
+p = FetchData( dge, c( "ident", "eday" )) %>% 
+  table %>% 
+  apply(2, percentify) %>% 
+  melt %>% 
+  plyr::rename(c(value = "percent")) %>% 
+  mutate(eday = as.character(eday)) %>% 
+  ggpie(main = "Sample makeup by day", col = my_cols, label = F )
+  
+ggsave(filename = file.path( results_path, "composition_by_day_dropseq_full.pdf"), p)
+
+# Simple clusters
+p = FetchData( dge, c( "ident", "eday" )) %>% 
+  mutate(ident = substr(ident, 1, 3)) %>% 
+  table %>% 
+  apply(2, percentify) %>% 
+  melt %>% 
+  plyr::rename(c(value = "percent")) %>%
+  mutate(eday = as.character(eday), ident = as.character(ident) ) %>% 
+  ggpie( main = "Composition by day, DropSeq", col = my_cols )
+ggsave(filename = file.path( results_path, "composition_by_day_dropseq.pdf"), p)
+
+#FACS data
+FACS_cook    = read.table( file.path( PATH_TO_TABLES, "cook_thesis_extracted_proportions_tidy.txt" ),
+                           header = T, sep = "\t" )
+FACS_kashfia = read.table( file.path( PATH_TO_TABLES, "kashfia_FACS_extracted_proportions_tidy.txt" ),
+                           header = T, sep = "\t" )
+purify_facs = function(X) {
+  X = X[1:4]
+  colnames( X ) = c( "eday", "Cd45_+", "Cd45-Epcam+", "Cd45-Epcam-" )
+  X[, -1] %<>% sweep( MARGIN = 1, STATS = rowSums( X[, -1] )/100, FUN = "/" ) %>% round(1)
+  X %<>% melt(id.vars = "eday") %>% 
+    plyr::rename(c(value = "percent", variable = "ident")) %>% 
+    mutate(eday = as.character(eday), ident = as.character(ident) )
+  return( X )
+}
+FACS_cook %<>% purify_facs
+FACS_kashfia %<>% purify_facs
+
+p = FACS_cook %>% 
+  ggpie( main = "Proportions of live cells, Cook 2010", col = my_cols )
+ggsave(filename = file.path( results_path, "composition_by_day_FACS_cook.pdf"), p)
+
+p = FACS_kashfia %>%
+  ggpie( main = "Proportions of live cells, FACS data", col = my_cols )
+ggsave(filename = file.path( results_path, "composition_by_day_FACS_kashfia.pdf"), p)
+
+
+```
+
+Heatmaps
+
+```{r}
+# # Retrieve stats on genes and clusters
+de_genes = read.table( freezr::inventory( tag = "all_genes_tested_fine" ),
+                       header = T, stringsAsFactors = F )
+
+# # De-duplicate, filter, and put out a subset
+# # genes are assigned to the cluster with biggest edge in expression
+de_genes$max_auc = ave(de_genes$myAUC, de_genes$gene, FUN = max)
+de_genes$max_diff = ave(de_genes$avg_diff, de_genes$gene, FUN = max)
+de_genes = subset( de_genes, myAUC == max_auc ) 
+de_genes = subset( de_genes, avg_diff == max_diff ) 
+de_genes$max_auc = NULL
+de_genes$max_diff = NULL
+atae(anyDuplicated(de_genes), 0)
+de_genes = de_genes[order(de_genes$cluster, -de_genes$myAUC, decreasing = F), ]
+
+# # Prepare to make heatmaps
+gimme_subset = function(ct) { subset( de_genes, cluster == ct ) }
+extract_genes = function(X) { X$gene }
+
+# # Small heatmap
+genes_lil_heatmap = clusters_to_heatmap %>%
+  lapply( FUN=gimme_subset ) %>%
+  lapply( FUN = top_n, n = 15, wt = avg_diff ) %>%
+  Reduce( f=rbind )
+
+p_heat = make_heatmap_for_table( dge = dge,
+                                 ident.use = "ident",
+                                 genes_in_order = genes_lil_heatmap$gene,
+                                 desired_cluster_order = smaller_types,
+                                 aggregator = mean,
+                                 norm_fun = standardize,
+                                 labels = "none" )
+p_heat = p_heat + ggtitle("Top markers, average expression")
+ggsave( filename = file.path( results_path, "heatmap_cluster_mean.pdf"),
+        plot = p_heat,
+        width = 12, height = 16)
+
+
+```

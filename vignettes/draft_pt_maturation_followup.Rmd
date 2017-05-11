@@ -1,0 +1,87 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+types = c( "mTEC", "cTEC" ); names(types) = types
+dge_list = as.list(types)
+pt_dep_list =  as.list(types)
+num_periods = c( 10, 20 ); names( num_periods ) = types
+
+genes_label_in_heatmap = list( cTEC = read.table( file.path(PATH_TO_TABLES, "genes_to_display_Figure4b.txt" ) )[[1]], 
+                               mTEC = read.table( file.path(PATH_TO_TABLES, "genes_to_display_Figure5b.txt" ) )[[1]] )
+
+for( cell_type in types ){
+  rp_mini = file.path( results_path, paste0(cell_type, "_PCA") )
+                       
+  # get dge
+  dge_list[[cell_type]] = inventory( tag = paste0( "whole_tecs_", cell_type, "_pt" ) ) %>% readRDS
+  
+  # pca plot
+  tsne_colored( dge_list[[cell_type]], results_path = rp_mini,
+                axes = c("PC1", "PC2"), axes_description = "PCA", 
+                colour = "eday", cols.use = Thanksgiving_colors )
+  
+  # pca density
+  ggsave( filename = file.path( rp_mini, "di_by_eday_density.pdf"),
+        plot = ggplot( dge_list[[cell_type]]@data.info ) + ggtitle( "DI by day" ) + 
+          geom_density( aes( x = pseudotime, fill = eday, group = eday ), alpha = 0.4 ) +
+          scale_fill_gradientn( colours = Thanksgiving_colors ) + 
+          theme(axis.text.y = element_text( angle = 90 ) ),
+        width = 8.8, height = 4)
+
+  save_feature_plots( dge_list[[cell_type]], results_path = rp_mini,
+                      gene_list = genes_plot, gene_list_name = paste0("handpicked_genes"),
+                      do_time_series = T )
+  
+  #Pseudotime smoothing and clustering
+  pt_dep_list[[cell_type]] = smooth_and_cluster_genes( dge = dge_list[[cell_type]],
+                                                       results_path = rp_mini,
+                                                       num_periods_initial_screen = num_periods[[cell_type]],
+                                                       num_clusters = NULL )
+  heatmap_gene_clusters( dge = dge_list[[cell_type]],
+                         results_path = rp_mini,
+                         cluster_mod  = pt_dep_list[[cell_type]]$cluster_mod, 
+                         smoothers    = pt_dep_list[[cell_type]]$smoothers, 
+                         genes_to_label = genes_label_in_heatmap[[cell_type]])
+  
+  # # Merge clusters and do facet plots
+  new_by_old = dendrogram_merge_points( pt_dep_list[[cell_type]]$cluster_mod$centers, 
+                                        num_desired = 3, 
+                                        results_path = rp_mini )
+  cluster_mod_condensed = pt_dep_list[[cell_type]]$cluster_mod
+  cluster_mod_condensed$cluster = new_by_old[ cluster_mod_condensed$cluster ]
+  cluster_mod_condensed$centers = aggregate.nice( pt_dep_list[[cell_type]]$kmeans_features, 
+                                                  by = cluster_mod_condensed$cluster, 
+                                                  FUN = mean )
+  
+  facet_plot_gene_clusters ( dge = dge_list[[cell_type]], 
+                             results_path = rp_mini, 
+                             cluster_mod = cluster_mod_condensed, 
+                             kmeans_features = pt_dep_list[[cell_type]]$kmeans_features,
+                             abcissae_kmeans = pt_dep_list[[cell_type]]$abcissae_kmeans,
+                             facet_ncol = 1 )
+  
+  # # Add merged clusters to gene stats; save; annotate
+  pt_dep_list[[cell_type]]$gene_stats %<>% mutate( major_cluster = new_by_old[cluster] )
+  write.table( pt_dep_list[[cell_type]]$gene_stats, 
+               file.path( rp_mini, "gene_pt_dependence_stats.txt" ),
+               quote = F, row.names = F, col.names = T, sep = "\t")
+  for( my_cluster in unique( cluster_mod_condensed$cluster ) ){
+    geneset = subset( pt_dep_list[[cell_type]]$gene_stats, 
+                      major_cluster==my_cluster, 
+                      select = "gene", 
+                      drop = T ) %>% as.character
+    do_enrichr( results_path = file.path( rp_mini, "annot" ),
+                geneset,
+                geneset_name = paste0( cell_type, "_cluster_", my_cluster ),
+                N_ANNOT_PER_DB = 5 )
+
+  }
+}
+```

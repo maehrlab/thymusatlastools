@@ -1,0 +1,38 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# # Assemble late time series
+draft_sampleids = get_sample_groups( c( "whole_e12_5",
+                                        "whole_e13_5",
+                                        "whole_e14_5" ,
+                                        "whole_e15_5",
+                                        "whole_e16_5" ), combine = T )
+dge_list = load_thymus_profiling_data( draft_sampleids, test_mode = F )
+raw_dge = dge_merge_list( dge_list ); rm( dge_list )
+dge = seuratify_thy_data( raw_dge, results_path, test_mode = F, min.cells = 10 ); rm( raw_dge )
+dge = add_maehrlab_metadata( dge, "eday" )
+dge = add_maehrlab_metadata( dge, "species" )
+dge = add_maehrlab_metadata( dge, "FACS_sorting" )
+dge = add_maehrlab_metadata( dge, "parathyroid_present" )
+
+all_params = expand.grid( cc_method = c( "average" ),
+                          excess_var_cutoff = c( 0.8,0.5,1.2 ),
+                          log_expr_cutoff = c( 0.10 ), 
+                          num_genes_to_select = NA, 
+                          prop_genes_to_select = NA, 
+                          var_gene_method = "seurat",
+                          num_pc = c( 25,20 ), 
+                          clust_method = "SNN",
+                          clust_granularities_as_string = "0.5",
+                          plot_all_var_genes = F,
+                          stringsAsFactors = F )
+dge = explore_embeddings( dge, results_path, test_mode = F, all_params)
+
+```

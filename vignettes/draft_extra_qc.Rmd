@@ -1,0 +1,17 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# # Retrieve Seurat labeled obj 
+path_to_labeled_Seurat_obj = inventory( tag = "overview_clean" )
+dge = readRDS( path_to_labeled_Seurat_obj ) 
+faceted_tsne( dge, results_path )
+
+
+```

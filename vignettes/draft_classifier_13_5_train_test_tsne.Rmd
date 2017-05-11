@@ -1,0 +1,56 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# # Retrieve overview data
+path_to_labeled_Seurat_obj = inventory( tag = "overview_clean_labeled" )
+dge = readRDS( path_to_labeled_Seurat_obj )
+dge13 = SubsetData( dge, cells.use = rownames( subset( FetchData( dge, "eday" ), eday==13.5 ) ) )
+rm( dge ); gc()
+
+# # Get test data with filled-in tSNE etc; remove doublets
+dge13_pth = freezr::inventory( tag = "classifier_experiment" ) %>% readRDS
+
+# # Put it all together and explore a bit
+dge13_both = list( test13 = dge13_pth_no_doublets, atlas13 = dge13 ) %>% 
+  lapply( deseuratify_raw_data ) %>% 
+  dge_merge_list %>% 
+  seuratify_thy_data( results_path )
+
+all_params = expand.grid( cc_method = c( "average" ),
+                          excess_var_cutoff = c( 0.8 ),
+                          log_expr_cutoff = c( 0.10 ), 
+                          num_genes_to_select = NA, 
+                          prop_genes_to_select = NA, 
+                          var_gene_method = "seurat",
+                          num_pc = c( 25 ), 
+                          clust_method = "SNN",
+                          clust_granularities_as_string = "0.5",
+                          plot_all_var_genes = F,
+                          stringsAsFactors = F )
+dge13_both = explore_embeddings( dge13_both, results_path, test_mode = F, all_params)
+dge13_both %<>% add_maehrlab_metadata( "parathyroid_present" )
+tsne_colored( dge13_both, results_path, "parathyroid_present" )
+misc_summary_info( dge13_both, results_path )
+
+
+dge13_both = freezr::inventory( inv_location = today_dest, 
+                                tag = "classifier_experiment_all_tsne" ) %>% readRDS
+
+x = dge13_both %>% FetchData(c("ident", "parathyroid_present")) %>% table %>% apply(2, percentify) 
+ratio = x[, 1] / x[, 2] 
+{ 
+  pdf("Reference_proportions.pdf")
+  barplot(ratio)
+  abline(h = 1)
+  title("Reference proportion relative to test data")
+  dev.off()
+}
+```
+

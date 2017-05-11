@@ -1,0 +1,259 @@
+---
+title: "Monocle analysis"
+author: "Eric Kernfeld"
+date: "November 2, 2016"
+output: html_document
+---
+
+#### Bootstrapping of gene-wise summary statistics
+
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# Eventually change this to fully automated results
+BOOTSTRAP_RESULTS_PATH = freezr::inventory( tag = "bootstrap_results_assembled" ) %>% dirname
+BRANCH_VIZ = c("branch_viz_1", "branch_viz_2")
+NUM_BOOT_AVAIL = 200
+DGE_FULL  = inventory(tag = "monocle_sorted") %>% readRDS
+
+        
+
+#' Calculate summary stats by gene 
+#' 
+#' @param boot_out Summary stats from a Monocle run, including $simple_branch.
+#' @param up_labels @param down_labels Subsets of `boot_out$simple_branch`. Typically from 
+#' `c("progenitor", "branchpoint",  "mTEC", "cTEC")`.
+#' @param dge Seurat object with gene expression data (accessed via `@data`) and barcodes matching `boot_out$barcode`.
+get_diffs = function( boot_out, 
+                      up_labels = c( "progenitor" ), 
+                      down_labels = c(  "mTEC", "cTEC" ), 
+                      dge = DGE_FULL ){
+  get_bc = function( X ) ( X[["barcode"]] )
+  cells_up   = boot_out %>% subset(simple_branch %in% up_labels   ) %>% get_bc
+  cells_down = boot_out %>% subset(simple_branch %in% down_labels ) %>% get_bc
+  atat( all( cells_up %in% dge@cell.names ) )
+  return( rowMeans( dge@data[, cells_up] ) - rowMeans( dge@data[, cells_down] ) )
+}
+
+#' Assign each gene to a cell type. Return a simple test statistic.
+#'
+#' @details Computes the difference between average expression in one cell type and the rest combined. 
+#' Assigns the gene to the cell type with the highest absolute difference, with a label "lo" or "hi"
+#' for the sign of the difference.
+#' Crucially, averages are performed first within cell types and then combined. This makes the pooled average
+#' in a dataset with 3000 cTECs and 300 mTECs seem as if it were 50-50.
+get_top_diff = function( boot_out, dge = DGE_FULL, return_label = F, return_abs = T, two_sided = F ){
+  get_bc = function( X ) ( X[["barcode"]] )
+  bc_mTEC = boot_out %>% subset( simple_branch %in% "mTEC" ) %>% get_bc
+  bc_cTEC = boot_out %>% subset( simple_branch %in% "cTEC" ) %>% get_bc
+  bc_prog = boot_out %>% subset( simple_branch %in% "progenitor" ) %>% get_bc
+  avg_mTEC = rowMeans( dge@data[, bc_mTEC] )
+  avg_cTEC = rowMeans( dge@data[, bc_cTEC] )
+  avg_prog = rowMeans( dge@data[, bc_prog] )
+  
+  avg_diffs_all = data.frame(
+    cTEC = avg_cTEC - 0.5*(avg_mTEC + avg_prog), 
+    mTEC = avg_mTEC - 0.5*(avg_cTEC + avg_prog),
+    prog = avg_prog - 0.5*(avg_mTEC + avg_cTEC)
+  )
+  
+  get_label = function(x) {
+    if( two_sided ){
+      windex = names(which.max(abs(x)))
+    } else {
+      windex = names(which.max(    x ))
+    }
+    paste0( windex, "_", ifelse(x[windex] > 0, "hi", "lo") )
+  }
+  
+  get_stat = function(x) {
+    if( two_sided ){
+      windex = names(which.max(abs(x)))
+    } else {
+      windex = names(which.max(    x ))
+    }
+    return( ifelse( return_abs, abs(x[windex]), x[windex] ) )
+  }
+  
+  avg_diff = apply( avg_diffs_all, 1, get_stat)
+  label    = apply( avg_diffs_all, 1, get_label)
+  
+  if( return_label ){
+    return( data.frame( gene = rownames(avg_diffs_all), log2p1_fc = avg_diff , label, stringsAsFactors = F ) )
+  } else {
+    return( avg_diff )
+  }
+}
+
+#' Given bootstrap replicates, test a null hypothesis that the estimand is 0. Only two-sided tests.
+#' 
+#' @param boots_full_data Numeric atomic vector. This input is split with 
+#' last element treated as being from the observed data and rest as bootstrap outputs.
+#' This is so I can apply it to an array easily.
+#' @param emp If true (default), returns proportion of times test stat exceeds bootstrap minus bootstrap mean.
+#' If false, uses Normal p-value based on SD of centered bootstrap replicates.
+get_boot_p = function( boots_full_data, emp = T, na.rm = T, two_sided = F ){
+  atae( length( boots_full_data ), 1 + NUM_BOOT_AVAIL )  
+  boots     = boots_full_data[ -( 1 + NUM_BOOT_AVAIL ) ]
+  full_data = boots_full_data[  ( 1 + NUM_BOOT_AVAIL ) ]
+  boots_centered = boots - mean(boots, na.rm = T)
+  abs_or_not = function(x) ifelse( two_sided, abs(x), x )
+  two_or_one = ifelse( two_sided, 2, 1 )
+  if( emp ){
+    p = mean( abs_or_not( boots_centered ) >= abs_or_not( full_data ), na.rm = na.rm ) 
+  } else {
+    if( all( boots_full_data == 0 | is.na( boots_full_data ) ) ) { return( 1 ) }
+    p = two_or_one*pnorm(q = abs_or_not( full_data ), 
+                         mean = 0, 
+                         sd = sd( boots_centered, na.rm = na.rm), 
+                         lower.tail = F ) 
+  } 
+   
+  return(min(p, 1) )
+}
+
+#' Run bootstrap on a summary statistic calculated by `FUN`.
+#' 
+#' @param dge Seurat object with cell barcodes matching the saved material in the tables at `BOOTSTRAP_RESULTS_PATH`. 
+#' @param stat_name Goes into results file-paths.
+#' @param FUN Function with two args: `boot_out` is a dataframe with columns "barcode" and "simple_branch"
+#' and `dge` is the same Seurat object given to this function.
+#' Should return a numeric vector `v` with `names(v)` identical to the genes in `rownames(dge@data)`. 
+#' @param ... Additional args for FUN
+#' 
+#' @value Saves and returns a big fat numeric matrix with a row for every bootstrap replicate, 
+#' plus a row for the full dataset. There's a column for every gene in `dge@data`.
+#' 
+monocle_bootstrap_summary_stat = function( dge = DGE_FULL, FUN = get_diffs, stat_name, ... ){
+  
+  cat("Calculating summary stats for each gene and each bootstrap run \n")
+  summary_stats = matrix( NA, 
+                          nrow = NUM_BOOT_AVAIL + 1, 
+                          ncol = nrow( dge@data ), 
+                          dimnames = list(c(1:NUM_BOOT_AVAIL, "original"), 
+                                          rownames(dge@data))  )
+  for( sample_idx in rownames( summary_stats ) ){
+    if( sample_idx=="original"){ 
+      f = "full_run.txt"
+    } else {
+      f = paste0("monocle_results_", sample_idx, ".data")
+    }
+    if( !is.na( suppressWarnings( as.numeric( sample_idx ) ) ) ){ 
+      # Display progress
+      sample_idx = as.numeric(sample_idx)
+      if(sample_idx %% 50 == 0){
+        cat(sample_idx, "of", NUM_BOOT_AVAIL, "\n")
+      } else{
+        cat(".")
+      }
+    }
+    # Do actual work
+    boot_out = read.table( file.path( BOOTSTRAP_RESULTS_PATH, f ), header = T, sep = "\t", stringsAsFactors = F )
+    summary_stats[sample_idx, ] = FUN( boot_out = boot_out, dge = dge, ... )
+  }
+  
+  write.table( summary_stats, 
+               file.path( results_path, paste0( "stats_by_gene_all_boot_", stat_name, ".txt" ) ), 
+               quote = F, sep = "\t", row.names = T, col.names = T ) 
+  
+  # # Condense into p-values and q-values
+  desired_summaries = c("observed", "boot_mean", "boot_se", "emp_p", "normal_p", "emp_q", "normal_q" ) 
+  stat_by_gene = matrix( NA, 
+                         nrow = nrow( dge@data ), 
+                         ncol = length( desired_summaries ),
+                         dimnames = list( rownames( dge@data ), 
+                                          desired_summaries ) )
+  stat_by_gene[, "observed"]          = summary_stats["original", ] 
+  stat_by_gene[, "boot_mean"]  = apply( summary_stats[1:NUM_BOOT_AVAIL, ], 2, mean, na.rm = T )
+  stat_by_gene[, "boot_se"]    = apply( summary_stats[1:NUM_BOOT_AVAIL, ], 2, sd,   na.rm = T ) 
+  stat_by_gene[, "emp_p"]      = apply( summary_stats, 2, get_boot_p, emp = T )
+  stat_by_gene[, "normal_p"]   = apply( summary_stats, 2, get_boot_p, emp = F )
+  stat_by_gene[, "emp_q"]    = stats::p.adjust(stat_by_gene[, "emp_p"])
+  stat_by_gene[, "normal_q"] = stats::p.adjust(stat_by_gene[, "normal_p"])
+  stat_by_gene = as.data.frame(stat_by_gene)
+  stat_by_gene$gene = rownames(stat_by_gene)
+  
+  # # Sort, save
+  stat_by_gene = stat_by_gene[order(stat_by_gene$observed), ]
+  write.table( stat_by_gene, file.path(results_path, paste0( "stats_by_gene_overall_", stat_name, ".txt" ) ),
+               row.names = T, col.names = T, sep = "\t", quote = F)
+
+  return( stat_by_gene )
+}
+
+```
+
+#### Actually run the boootstrap
+
+```{r}
+# Can bootstrap any pairwise comparison
+# boot_prog_rest = monocle_bootstrap_summary_stat( FUN = get_diffs, stat_name = "prog_minus_mTEC_cTEC" )
+
+# Prefer to look for best model during bootstrap instead of deciding afterwards.
+boot_mTEC_diff = monocle_bootstrap_summary_stat( stat_name = "mTEC_diff", 
+                                                 up_labels = "mTEC", 
+                                                 down_labels = c("cTEC", "progenitor") )
+boot_cTEC_diff = monocle_bootstrap_summary_stat( stat_name = "cTEC_diff", 
+                                                 up_labels = "cTEC", 
+                                                 down_labels = c("mTEC", "progenitor") )
+boot_prog_diff = monocle_bootstrap_summary_stat( stat_name = "prog_diff", 
+                                                 up_labels = "progenitor", 
+                                                 down_labels = c("cTEC", "mTEC") )
+# Get cluster assignments
+original = read.table( file.path( BOOTSTRAP_RESULTS_PATH, "full_run.txt" ), 
+                       header = T, sep = "\t", stringsAsFactors = F )
+to_return = get_top_diff( boot_out = original, return_label = T )
+
+boot_mTEC_diff = boot_mTEC_diff[to_return$gene, ]
+boot_cTEC_diff = boot_cTEC_diff[to_return$gene, ]
+boot_prog_diff = boot_prog_diff[to_return$gene, ]
+atae(to_return$gene, boot_mTEC_diff$gene)
+atae(to_return$gene, boot_cTEC_diff$gene)
+atae(to_return$gene, boot_prog_diff$gene)
+  
+# Take minima and correct for bias
+to_return$p = cbind( boot_mTEC_diff$normal_p, 
+                     boot_cTEC_diff$normal_p, 
+                     boot_prog_diff$normal_p ) %>% apply(1, min) %>% pbeta( shape1 = 1, shape2 = 3)
+to_return$q = stats::p.adjust( to_return$p )
+to_return$log10_q = log10( to_return$q )
+
+  
+# Sort, save, filter, save
+my_perm = order( to_return$label, -abs( to_return$log2p1_fc ) )
+to_return = to_return[ my_perm, ]
+write.table( to_return, 
+             file.path(results_path, paste0( "boot_avg_diff_unfiltered.txt" ) ),
+             row.names = T, col.names = T, sep = "\t", quote = F)
+write.table( to_return %>% subset( q < 0.01 ), 
+             file.path(results_path, paste0( "boot_avg_diff_FDR_0_01.txt" ) ),
+             row.names = T, col.names = T, sep = "\t", quote = F)
+to_return_tidy = to_return %>% 
+  subset( q < 0.01, select = c( "label", "gene", "log2p1_fc", "log10_q") ) %>% 
+  mutate(log2p1_fc = round(log2p1_fc, 2), log10_q = round(log10_q, 1))
+write.table( to_return_tidy,
+             file.path(results_path, paste0( "boot_avg_diff_FDR_0_01_tidy.txt" ) ),
+             row.names = F, col.names = T, sep = "\t", quote = F)
+write.table( to_return_tidy %>% group_by(label) %>% top_n(n=25, wt = log2p1_fc),
+             file.path(results_path, paste0( "boot_avg_diff_top_25.txt" ) ),
+             row.names = F, col.names = T, sep = "\t", quote = F)
+```
+
+#### Plotting
+
+```{r}
+
+# Code fragment for feature plots
+# stats_by_gene_overall_cTEC_minus_prog %>%
+#   subset( normal_q < 0.01) %>%
+#   subset( observed * sign > 0 ) %>%
+#   top_n(n = 40, wt = abs(observed)) %>%
+#   subset( select = "gene", drop = T ) %>%
+#   save_feature_plots( dge_full, results_path,
+#                       gene_list = ., gene_list_name = paste0( cell_type, "_specific" ),
+#                       axes = BRANCH_VIZ, axes_description = "monocle",
+#                       overplot_adjust = T, cols.use = blue_purple_red )
+
+
+```

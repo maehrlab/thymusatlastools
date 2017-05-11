@@ -1,0 +1,101 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+library(enrichR)
+library(gridExtra)
+library(grid)
+desired_db = c(   
+  #transcription
+  "ChEA_2016", "ENCODE_Histone_Modifications_2015",
+  # pathways
+  "KEGG_2016", "WikiPathways_2016", "NCI-Nature_2016",
+  #ontologies
+  "GO_Biological_Process_2015", "GO_Cellular_Component_2015", "GO_Molecular_Function_2015", 
+  "MGI_Mammalian_Phenotype_Level_3",  "MGI_Mammalian_Phenotype_Level_4", 
+  # Disease
+  "OMIM_Disease",
+  # Cell types
+  "Human_Gene_Atlas", "Mouse_Gene_Atlas" )
+
+# In case I missed any spaces
+desired_db = gsub( x = desired_db, pattern = " ", replacement = "_" )
+
+# # Loop over many cell types
+de_genes = read.table( freezr::inventory( tag = "all_genes_tested_fine" ),
+                       header = T, stringsAsFactors = F )
+de_genes_coarse = read.table( freezr::inventory( tag = "all_genes_tested_coarse" ),
+                              header = T, stringsAsFactors = F)
+de_genes_coarse$cluster[de_genes_coarse$cluster == "BLD_most"] = "BLD1234"
+filtered_genes = rbind( de_genes        %>% subset( avg_diff > 1.5 ), 
+                        de_genes_coarse %>% subset( avg_diff > 1.5 ) )
+filtered_genes = filtered_genes[order(filtered_genes$cluster), ]
+
+celltype_cols = c( "deeppink", "firebrick2", "firebrick",
+                   "firebrick4", "coral3", "deeppink4", 
+                   "orange", "goldenrod",  "blue" ,
+                   "cadetblue1","cadetblue", "cadetblue3" )
+celltype_cols = c(celltype_cols, "deeppink", "red", "cyan" )
+names( celltype_cols ) = c( unique( de_genes$cluster ), unique( de_genes_coarse$cluster ) )
+
+tables_by_celltype = as.list( celltype_cols )
+N_ANNOT_PER_DB = 2
+all_output = NULL
+for( cell_type in unique( filtered_genes$cluster ) %>% rev ){
+  # # Get genes
+  genes_in_order = subset( filtered_genes, cluster == cell_type, select = gene )[[1]]
+  # # Get enrichr results and parse them
+  output_table = enrichR::enrichGeneList( gene.list = genes_in_order, databases = desired_db ) 
+  output_table %<>% group_by( database ) %>% top_n( wt = -pval, n = N_ANNOT_PER_DB) %>% as.data.frame
+  output_table$pval = NULL
+  output_table %<>% mutate( log10_qval = round( log10( qval ), 1 ) )
+  output_table$qval = NULL
+  output_table = output_table[c(1,2,4,3)]
+  
+  # # Genes are arranged in order with <=8 per line
+  make_nice_genelist = function( x, genes_per_line = 8 ) {
+    x %<>% as.factor( levels = genes_in_order, ordered = T) %>% sort %>% as.character
+    seps = rep( " ", length(x))
+    if( length( seps ) > genes_per_line ) {
+      seps[seq(genes_per_line, length(seps), by = genes_per_line)] = "\n"
+    }
+    return( paste0( paste0( x, seps ), collapse = "" ) )
+  }
+  output_table$genes  = NULL # %<>% strsplit(split = ",") %>% sapply( make_nice_genelist )
+  
+  # # Save raw table
+  write.table( x = output_table, file = file.path( results_path, paste0("annot_", cell_type, "_raw.txt" ) ),
+               sep = "\t", quote = F, row.names = T, col.names = T )
+    
+  # # Set up color palette and print to file
+  n_colors = length(unique(output_table$database)); 
+  color_idx = output_table$database %>% factor(levels = desired_db, ordered = T) %>% as.integer
+  my_cols = scales::hue_pal()(n_colors)[ color_idx ]
+  theme_col_by_db = ttheme_minimal( core=list( bg_params = list( fill = my_cols ) ) )
+  ggsave( tableGrob( d = output_table, theme = theme_col_by_db ), 
+          file = file.path( results_path, paste0("color=database_annot_", cell_type, ".pdf")  ), 
+          width = 15, height = 10 )
+  
+  # # Print with color by celltype
+  output_table = cbind( cell_type = cell_type, output_table )
+  col_mat = matrix("white", ncol = ncol( output_table ), nrow = nrow( output_table ) )
+  col_mat[, 1] = celltype_cols[ cell_type ]
+  theme_col_by_ct = ttheme_minimal( core=list( bg_params = list( fill = col_mat ) ) )
+  ggsave( tableGrob( d = output_table, theme = theme_col_by_ct ), 
+          file = file.path( results_path, paste0("color=ct_annot_", cell_type, ".pdf")  ), 
+          width = 15, height = 10, limitsize = F )
+  all_output %<>% rbind( output_table )
+}
+write.table( all_output,     file.path( results_path, "all_output.txt" ),
+             sep = "\t", quote = F )
+write.table( filtered_genes, file.path( results_path, "filtered_markers.txt" ), 
+             sep = "\t", quote = F )
+ 
+ 
+```

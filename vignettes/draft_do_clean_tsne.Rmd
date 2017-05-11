@@ -1,0 +1,32 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# # Retrieve Seurat labeled obj and purify
+path_to_labeled_Seurat_obj = inventory( tag = "overview_no_doublets" )
+
+dge = readRDS( path_to_labeled_Seurat_obj )
+dge = Seurat::SubsetData( dge, ident.use = setdiff(unique(dge@ident), c( "DUB_mes_tec", 
+                                                                         "DUB_bld_tec",
+                                                                         "DUB_mes_bld", 
+                                                                         "UNK" ) ) )
+all_params = expand.grid( cc_method = c( "average" ),
+                          excess_var_cutoff = c( 0.8, 0.5, 1.2 ),
+                          log_expr_cutoff = c( 0.10 ), 
+                          num_genes_to_select = NA, 
+                          prop_genes_to_select = NA, 
+                          var_gene_method = "seurat",
+                          num_pc = c( 20, 25 ), 
+                          clust_method = "SNN",
+                          clust_granularities_as_string = "0.5,0.8",
+                          plot_all_var_genes = F,
+                          stringsAsFactors = F )
+dge = explore_embeddings( dge, results_path, test_mode = F, all_params)
+
+```

@@ -1,0 +1,36 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+# # Retrieve clean overview TECs plus sorted data
+dge = inventory( tag = "mTEC_cTEC_explore" ) %>% readRDS  
+dge %>% custom_feature_plot( "ident" )
+map = c( "0" = "cTEC", 
+         "2" = "cTEC", 
+         "4" = "cTEC", 
+         "7" = "cTEC", 
+         "3" = "mTEC", 
+         "5" = "mTEC", 
+         "6" = "doublet" )
+x = FetchData(dge, "ident") %>% mutate( cell_type = map[as.character(ident)])
+x %>% table
+x %<>% select(2)
+rownames(x) = rownames(dge@data.info)
+dge %<>% AddMetaData( metadata = x )
+dge %>% tsne_colored( results_path, colour = "cell_type" )
+saveRDS( dge, file.path( results_path, "dge_labeled.data" ) )
+
+dge = SetIdent(dge, cells.use = dge@cell.names, ident.use = FetchData(dge, "cell_type")[[1]])
+de_genes = FindMarkers( dge, ident.1 = "mTEC", ident.2 = "cTEC", thresh.use = 0.5, test.use = "roc" )
+de_genes$gene    = rownames( de_genes )
+de_genes$cluster = ifelse( de_genes$avg_diff > 0, "mTEC", "cTEC" )
+de_genes = de_genes[ order(de_genes$myAUC, decreasing = T), ]
+write.table( de_genes, file.path( results_path, "mTEC_cTEC_markers.txt" ),
+             sep = "\t", quote = F)
+```

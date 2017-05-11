@@ -1,0 +1,33 @@
+---
+title: "Figure drafts for Jan 2017 submission"
+author: "Eric Kernfeld"
+date: "January 18, 2017"
+output: html_document
+---
+
+This script exports data for a collaborator.
+
+```{r}
+results_path = Sys.getenv( "FREEZR_DESTINATION" )
+
+dge_cTEC = inventory( tag = "simple_pt_cTEC" ) %>% readRDS
+list_cTEC = explore_pt_dependence( dge_cTEC, results_path = file.path( results_path, "cTEC" ), 
+                                   num_periods = 20, num_clusters = 3 )
+dge_mTEC = inventory( tag = "simple_pt_mTEC" ) %>% readRDS
+list_mTEC = explore_pt_dependence( dge_mTEC, results_path = file.path( results_path, "mTEC" ), 
+                                   num_periods = 8, num_clusters = 3 )
+dge_cTEC = list_cTEC$dge
+dge_mTEC = list_cTEC$dge
+
+write.table( as.matrix( dge_cTEC@data ), file.path( results_path, "cTEC_log2p1_cpx.dge.txt" ) , 
+             sep = "\t", quote = F, row.names = T, col.names = T )
+write.table( as.matrix( dge_mTEC@data ), file.path( results_path, "mTEC_log2p1_cpx.dge.txt" ) , 
+             sep = "\t", quote = F, row.names = T, col.names = T )
+desired_metadata = c("nGene", "nUMI", "orig.ident", "eday" , "IG1.S","S" , "G2.M", "M", "M.G1", "pseudotime", "period" )
+write.table( dge_cTEC@data.info[desired_metadata], file.path( results_path, "cTEC_metadata.txt" ) , 
+             sep = "\t", quote = F, row.names = T, col.names = T )
+write.table( dge_mTEC@data.info[desired_metadata], file.path( results_path, "mTEC_metadata.txt" ), 
+             sep = "\t", quote = F, row.names = T, col.names = T )
+  
+
+```

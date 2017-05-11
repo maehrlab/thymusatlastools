@@ -1,0 +1,268 @@
+---
+title: "Figures for Thymic Development Atlas"
+author: "Eric Kernfeld"
+date: "February 17, 2017"
+output: html_document
+---
+
+###Setup
+
+```{r setup, include=FALSE}
+# # Move to repo with code for this paper
+# # set results path
+setwd("~/Desktop/single-cell RNAseq for thymus development profiling/")
+today_dest = file.path( getwd(), "results", "2017_jan_thy_organogenesis_5" )
+
+# # Load freezr and make a shortcut to cut down on boilerplate
+library(freezr)
+flash_freeze = function( analysis_to_run = NULL ){
+  freezr::freeze( analyses_to_run = c( "thymus_functions.Rmd", analysis_to_run ),
+                  destination = today_dest,
+                  chastise = F, seed_to_set = 20170322 )
+}
+```
+
+###QC and doublet removal
+
+```{r}
+# # QC
+last_dest = flash_freeze( "qc_all.Rmd" )
+
+# # Data assembly and initial exploration
+last_dest = flash_freeze( "draft_data_assemble.Rmd" )
+timestamp = basename( last_dest ) 
+params_for_downstream = "cc_method=average|excess_var_cutoff=0.5|log_expr_cutoff=0.1|num_genes_to_select=NA|prop_genes_to_select=NA|var_gene_method=seurat|num_pc=20|clust_method=SNN|clust_granularities_as_string=0.5|plot_all_var_genes=FALSE"
+freezr::inventory( inv_location = today_dest,
+                   tag = "overview_explore", delete = T,
+                   filename = file.path( timestamp, "user", params_for_downstream, "dge.data" ) )
+
+# # Doublet removal
+last_dest = flash_freeze( "draft_doublet_fig.Rmd" )
+timestamp = basename( last_dest ) 
+freezr::inventory( inv_location = today_dest,
+                   tag = "overview_no_doublets",
+                   parent_tag = "overview_explore",
+                   filename = file.path( timestamp, "user", "dge_labeled.data" ) )
+
+```
+
+###Exploration of clean data
+
+```{r}
+
+# # Redo t-SNE et cetera without doublets
+last_dest = flash_freeze( "draft_do_clean_tsne.Rmd" )
+timestamp = basename( last_dest )
+params_selected = "cc_method=average|excess_var_cutoff=0.8|log_expr_cutoff=0.1|num_genes_to_select=NA|prop_genes_to_select=NA|var_gene_method=seurat|num_pc=20|clust_method=SNN|clust_granularities_as_string=0.5,0.8|plot_all_var_genes=FALSE"
+freezr::inventory( inv_location = today_dest, 
+                   tag = "overview_clean",
+                   parent_tag = "overview_no_doublets",
+                   filename = file.path( timestamp, "user", params_selected, "dge.data" ) )
+freezr::inventory( today_dest )
+
+# # Relabel clean tSNE
+last_dest = flash_freeze( "draft_relabel_clean_tsne.Rmd" )
+timestamp = basename( last_dest )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "overview_clean_labeled", 
+                   parent_tag = "overview_clean",
+                   filename = file.path( timestamp, "user", "dge_labeled.data" ) )
+freezr::inventory( today_dest )
+
+# # Find markers for each cluster
+last_dest = flash_freeze( "draft_get_markers.Rmd" )
+timestamp = basename( last_dest )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "all_genes_tested_coarse", delete = T,
+                   parent_tag = "overview_clean_labeled",
+                   filename = file.path( timestamp, "user", "all_genes_tested_coarse.txt" ) )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "all_genes_tested_fine", delete = T,
+                   parent_tag = "overview_clean_labeled",
+                   filename = file.path( timestamp, "user", "all_genes_tested_detailed.txt" ) )
+freezr::inventory( today_dest )
+
+# # Make heatmaps and filtered, merged marker list
+last_dest = flash_freeze( "draft_overview_heatmaps.Rmd" )
+last_dest = flash_freeze( "draft_overview_pathway_analysis.Rmd" )
+```
+
+###Pseudotime and preprocessing
+
+Set up mTEC/cTEC labels.
+
+```{r}
+last_dest = flash_freeze( "draft_mTEC_cTEC.Rmd" )
+params = "cc_method=average|excess_var_cutoff=0.5|log_expr_cutoff=0.1|prop_genes_to_select=NA|num_genes_to_select=NA|var_gene_method=seurat|num_pc=8|clust_method=SNN|clust_granularities_as_string=0.5|plot_all_var_genes=FALSE"
+freezr::inventory( inv_location = today_dest, 
+                   tag = "mTEC_cTEC_explore", 
+                   parent_tag = "overview_clean_labeled", 
+                   filename = file.path( basename( last_dest ), "user", params, "dge.data" ) )
+last_dest = flash_freeze( "draft_mTEC_cTEC_label.Rmd" )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "mTEC_cTEC_clean_labeled", delete = T,
+                   parent_tag = "mTEC_cTEC_explore", 
+                   filename = file.path( basename( last_dest ), "user", "dge_labeled.data" ) )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "mTEC_cTEC_markers", delete = T,
+                   parent_tag = "mTEC_cTEC_explore", 
+                   filename = file.path( basename( last_dest ), "user", "mTEC_cTEC_markers.txt" ) )
+```
+
+Add 16.5 sorted data and explore/relabel the result.
+
+```{r}
+last_dest = flash_freeze( "draft_TEC_add_sorted_16.Rmd" )
+params = "cc_method=average|excess_var_cutoff=0.5|log_expr_cutoff=0.1|prop_genes_to_select=NA|num_genes_to_select=NA|var_gene_method=seurat|num_pc=8|clust_method=SNN|clust_granularities_as_string=0.5|plot_all_var_genes=FALSE"
+freezr::inventory( inv_location = today_dest, 
+                   tag = "whole_plus_sorted_16_explore", delete = T,
+                   parent_tag = "overview_clean_labeled", 
+                   filename = file.path( basename( last_dest ), "user", params, "dge.data" ) )
+last_dest = flash_freeze( "draft_TEC_whole_plus_sorted_16_preprocess.Rmd" )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "whole_plus_sorted_16_labeled", delete = T,
+                   parent_tag = "whole_plus_sorted_16_explore", 
+                   filename = file.path( basename( last_dest ), "user", "dge_labeled.data" ) )
+```
+
+Pseudotime analysis of mTECs and cTECs from whole-thymus data.
+
+```{r}
+
+last_dest = flash_freeze( "draft_pt_many_datasets.Rmd" )
+freezr::inventory( inv_location = today_dest, tag = "whole_tecs_cTEC_pt", delete = T,
+                   filename = file.path( basename( last_dest ), "user", 
+                                         "whole_tecs_cTEC_PCA", "dge_TECs.data" ) )
+freezr::inventory( inv_location = today_dest, tag = "whole_tecs_mTEC_pt", delete = T,
+                   filename = file.path( basename( last_dest ), "user", 
+                                         "whole_tecs_mTEC_PCA", "dge_TECs.data" ) )
+last_dest = flash_freeze( "draft_pt_maturation_followup.Rmd" )
+last_dest = flash_freeze( "draft_pt_maturation_cc.Rmd" )
+last_dest = flash_freeze( "draft_maturation_dpt.Rmd" )
+freezr::inventory( inv_location = today_dest, tag = "dpt_whole_tecs_cTEC", delete = T,
+                   filename = file.path( basename( last_dest ), "user", 
+                                         "whole_tecs_cTEC_DPT", "dge_TECs.data" ) )
+freezr::inventory( inv_location = today_dest, tag = "dpt_whole_tecs_mTEC", delete = T,
+                   filename = file.path( basename( last_dest ), "user", 
+                                         "whole_tecs_mTEC_DPT", "dge_TECs.data" ) )
+last_dest = flash_freeze( "draft_dpt_maturation_followup.Rmd" )
+
+```
+
+Explore earlier sorted data and preprocess. (Pharynx and parathyroid removal; QC.)
+
+```{r}
+last_dest = flash_freeze( "draft_TEC_sorted_explore.Rmd" )
+params_for_downstream = "cc_method=average|excess_var_cutoff=0.5|log_expr_cutoff=0.1|prop_genes_to_select=NA|num_genes_to_select=NA|var_gene_method=seurat|num_pc=8|clust_method=SNN|clust_granularities_as_string=0.5|plot_all_var_genes=FALSE"
+freezr::inventory( inv_location = today_dest, 
+                   tag = "ts_sorted", delete = T,
+                   filename = file.path( basename( last_dest ), "user", params_for_downstream, "dge.data" ) )
+
+last_dest = flash_freeze( "draft_TEC_sorted_preprocess.Rmd" )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "ts_sorted_clean", delete = T,
+                   filename = file.path( basename( last_dest ), "user", "dge_sorted_clean.data" ) )
+
+```
+
+Monocle analysis of branch point
+
+```{r}
+last_dest = flash_freeze( "draft_pt_sorted.Rmd" )
+freezr::inventory( inv_location = today_dest,
+                   tag = "monocle_sorted", delete = T,
+                   filename = file.path( basename( last_dest ), "user", "sorted_10_13", "dge_TECs.data" ) )
+
+last_dest = flash_freeze( "draft_pt_bootstrap.Rmd" )
+freezr::inventory( inv_location = today_dest,
+                   tag = "bootstrap_results", delete = T,
+                   filename = file.path( basename( last_dest ), "user" ) )
+
+last_dest = flash_freeze( "draft_pt_bootstrap_mopup.Rmd" )
+freezr::inventory( inv_location = today_dest,
+                   tag = "bootstrap_results_assembled", delete = T,
+                   filename = file.path( basename( last_dest ), "user", "bootstrap_samples.txt" ) )
+last_dest = flash_freeze( "draft_pt_bootstrap_plotting.Rmd" )
+last_dest = flash_freeze( "draft_pt_branchpoint_inspection.Rmd" )
+freezr::inventory( inv_location = today_dest,
+                   tag = "branch_markers", delete = T,
+                   filename = file.path( basename( last_dest ), "user", "boot_avg_diff_FDR_0_01.txt" ) )
+last_dest = flash_freeze( "draft_pt_branching_heatmap.Rmd" )
+last_dest = flash_freeze( "draft_pt_branch_marker_annot.Rmd" )
+```
+
+####Classifier
+
+```{r}
+# # Experiment to validate a cell classifier with a reject option
+last_dest = flash_freeze( "draft_classifier_13_5_computation.Rmd" ) 
+timestamp = basename(last_dest)
+params = "cc_method=average|excess_var_cutoff=0.8|log_expr_cutoff=0.1|num_genes_to_select=NA|prop_genes_to_select=NA|var_gene_method=seurat|num_pc=25|clust_method=SNN|clust_granularities_as_string=0.5|plot_all_var_genes=FALSE"
+freezr::inventory( inv_location = today_dest, 
+                   tag = "classifier_experiment_initial", delete = T,
+                   parent_tag = "overview_clean_labeled",
+                   filename = file.path( timestamp, "user", "initial", params, "dge.data" ) )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "classifier_experiment_nodub", delete = T,
+                   parent_tag = "overview_clean_labeled",
+                   filename = file.path( timestamp, "user", "nodub", params, "dge.data" ) )
+freezr::inventory( inv_location = today_dest, 
+                   tag = "classifier_experiment_pth_markers", delete = T,
+                   parent_tag = "overview_clean_labeled",
+                   filename = file.path( timestamp, "user", "reject_markers.txt" ) )
+
+last_dest = flash_freeze( "draft_classifier_13_5_figures.Rmd" ) 
+last_dest = flash_freeze( "draft_classifier_13_5_pathway.Rmd" ) 
+last_dest = flash_freeze( "draft_classifier_13_5_train_test_tsne.Rmd" ) 
+timestamp = basename( last_dest )
+params = "cc_method=average|excess_var_cutoff=0.8|log_expr_cutoff=0.1|num_genes_to_select=NA|prop_genes_to_select=NA|var_gene_method=seurat|num_pc=25|clust_method=SNN|clust_granularities_as_string=0.5|plot_all_var_genes=FALSE"
+freezr::inventory( inv_location = today_dest, 
+                   tag = "classifier_experiment_all_tsne", delete = T,
+                   parent_tag = "classifier_experiment_initial",
+                   filename = file.path( timestamp, "user", params, "dge.data" ) )
+
+```
+
+###Odds and ends
+
+```{r}
+
+# # Do some extra QC, checking replicates via t-SNE after removal of doublets
+last_dest = flash_freeze( "draft_extra_qc.Rmd" )
+# # QC on peripheral data 
+last_dest = flash_freeze( "draft_peripheral_qc.Rmd" )
+
+
+# # Check for receptor-ligand pairs expressed in each cell type
+last_dest = flash_freeze( "draft_rl_mTEC_cTEC.Rmd" ) 
+freezr::inventory( inv_location = today_dest, 
+                   tag = "receptor_ligand", delete = T,
+                   parent_tag = "overview_clean_labeled",
+                   filename = file.path( basename(last_dest), "user"  ) )
+last_dest = flash_freeze( "draft_rl_unionize.Rmd" ) 
+freezr::inventory( inv_location = today_dest, 
+                   tag = "receptor_ligand_union_by_day", delete = T,
+                   parent_tag = "overview_clean_labeled",
+                   filename = file.path( basename(last_dest), "user", "union_by_day"  ) )
+last_dest = flash_freeze( "draft_rl_pathway_analysis.Rmd" ) 
+last_dest = flash_freeze( "draft_rl_mTEC_transition.Rmd" ) 
+
+```
+
+
+###Exports & collaborations
+
+```{r}
+last_dest = flash_freeze( "draft_TEC_pt_to_Michael.Rmd" )
+
+last_dest = flash_freeze( "draft_rl_thymocyte_cTEC.Rmd" )
+
+
+last_dest = flash_freeze( "subset_blood.Rmd" )
+last_dest = flash_freeze( "explore_blood_17_18_p0.Rmd" )
+params = "cc_method=average|excess_var_cutoff=1.2|log_expr_cutoff=0.1|num_genes_to_select=NA|prop_genes_to_select=NA|var_gene_method=seurat|num_pc=25|clust_method=SNN|clust_granularities_as_string=0.5|plot_all_var_genes=FALSE"
+freezr::inventory( inv_location = today_dest, 
+                   tag = "explore_17_18_p0", delete = T,
+                   filename = file.path( basename(last_dest), "user", params, "dge.data"  ) )
+last_dest = flash_freeze( "subset_blood_17_18_p0.Rmd" )
+```
