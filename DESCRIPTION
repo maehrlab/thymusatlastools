@@ -1,8 +1,8 @@
-Package: thymusatlas
-Title: A Transcriptomic Atlas of Thymus Development
+Package: thymus_atlas_tools
+Title: A Transcriptomic Atlas of Thymus Development (public data)
 Version: 0.0.0.9000
 Authors@R: person("Eric", "Kernfeld", email = "eric.kernfeld@umassmed.edu", role = c("aut", "cre"))
-Description: This package serves as a vehicle for code and data to accompany the recent paper INSERT CITATION HERE EVENTUALLY.
+Description: This set of packages serves as a vehicle for code and data to accompany the recent paper INSERT CITATION HERE EVENTUALLY.
 Depends: R (>= 3.3.1)
 License: All rights reserved.
 Encoding: UTF-8
