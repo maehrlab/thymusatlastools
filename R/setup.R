@@ -1,7 +1,5 @@
 ## ------------------------------------------------------------------------
 
-PATH_TO_DATA = file.path( "Data" )
-PATH_TO_METADATA = file.path( PATH_TO_DATA, "metadata.csv")
 PATH_TO_TABLES = file.path( "tables" ) 
 
 library(enrichR)
@@ -91,51 +89,7 @@ get_ortholog_table = function(){
   return( read.csv( ortholog_table_path, header = T, stringsAsFactors = F ) )
 }
 
-get_ATAC_seq = function(){
-  the_right_file = "mm9.2.e13.5Embryo_ATAC_summits_350bp_allChroms_regPotential.txt"
-  atac = read.table( file.path( PATH_TO_ATAC, the_right_file ), header = T, stringsAsFactors = F )
-  # colnames( atac ) = lapply( colnames( atac ), FUN = substring, first = 3)
-  ensembl_ids = read.table( file.path( PATH_TO_TABLES, "mouse_genes_ensembl.txt" ),
-                            header = T, stringsAsFactors = F, sep = "\t" )
-  ensembl_ids = ensembl_ids[!duplicated( ensembl_ids$Gene.ID ), ]
-  
-  # # Get rid of genes present in only one table or the other
-  missing_from_biomart_table = setdiff( rownames( atac ), unique( ensembl_ids$Gene.ID ))
-  print( paste0("Discarding ", length( missing_from_biomart_table ),
-               " genes that are in Michael's data but not available through BioMart." ) )
-  genes_use_ensembl = intersect( rownames( atac ), unique( ensembl_ids$Gene.ID ) )
-  atac_convertible = atac[ genes_use_ensembl, ]
-  ensembl_ids = subset( ensembl_ids, Gene.ID %in% genes_use_ensembl )
 
-  atat( !any( is.na( atac_convertible ) ) )
-  
-  my_map = setNames( ensembl_ids$Associated.Gene.Name, nm = ensembl_ids$Gene.ID )
-  preimage_info = get_preimage( my_map, detailed_output = T )
-  atac_converted_unique = atac_convertible[names( preimage_info$output_occurs_once ), ]
-  rownames( atac_converted_unique ) = preimage_info$output_occurs_once 
-  atat( !any( is.na( atac_converted_unique ) ) )
-  atac_converted_dupes = matrix(NA, 
-                                ncol = ncol( atac_converted_unique ), 
-                                nrow = length( unique( preimage_info$output_occurs_multiple ) ) )
-  colnames( atac_converted_dupes ) = colnames( atac_converted_unique )
-  dupe_symbols = unique( preimage_info$output_occurs_multiple ) 
-  rownames( atac_converted_dupes ) = dupe_symbols
-  
-  print( paste0( "Converting ", 
-                 length( my_map ),
-                 " ensembl ids to only ",
-                 length( preimage_info$preimage ),
-                 " gene symbols. Colliding rows will be averaged. " ) )
-  for( gene_symbol in dupe_symbols ){
-    idx = preimage_info$preimage[[ gene_symbol ]]
-    atac_converted_dupes[gene_symbol, ] = colMeans( atac_convertible[idx, ])
-  }
-
-  atac_converted = rbind( atac_converted_unique, atac_converted_dupes )
-  atat( !any( is.na( atac_converted ) ) )
-
-  return( atac_converted )
-}
 
 showcol = function(col) { pie(rep(1, length(col)), col = col) }
 CC_PHASES = c("IG1.S", "S", "G2.M", "M", "M.G1")
