@@ -2,6 +2,7 @@
 
 # Several different methods of variable gene selection, all based on outliers in mean-versus-sd plots.
 # You can give either x and y cutoffs for these plots or the number of genes to select -- not both.
+#' @export
 var_gene_select = function( dge, results_path, test_mode = F, 
                             prop_genes_to_select = NULL,
                             num_genes_to_select = NULL,
@@ -104,6 +105,7 @@ var_gene_select = function( dge, results_path, test_mode = F,
   return(dge)
 }
 
+#' @export
 save_complexity_plot = function(dge, result_path){
   dir.create.nice( file.path( result_path, "QC" ) )
   f = file.path(result_path, "QC/complexity.pdf")
@@ -118,6 +120,7 @@ save_complexity_plot = function(dge, result_path){
 
 
 ## ------------------------------------------------------------------------
+#' @export
 add_cc_score = function(dge, method = "average"){
   # Get cell cycle genes and expression data
   # ccDat   = read.table(file.path(PATH_TO_TABLES, "ms_cellcycleGO0007049.txt"),   sep="\t")
@@ -185,6 +188,7 @@ add_cc_score = function(dge, method = "average"){
 }
 
 ## ------------------------------------------------------------------------
+#' @export
 do_dim_red = function( dge, pc.use, ... ){
   dge = Seurat::PCA( dge, do.print = F, pcs.store = max( pc.use ) )
   if( test_mode ){
@@ -200,6 +204,7 @@ do_dim_red = function( dge, pc.use, ... ){
  
 
 ## ------------------------------------------------------------------------
+#' @export
 top_genes_by_pc = function(dge, results_path, test_mode, num_pc = 30){
   if(test_mode){return()} #Doesn't work with small data. Don't care; bypassing.
   dir.create.nice(file.path(results_path, "top_genes_for_each_pc") )
@@ -226,6 +231,7 @@ top_genes_by_pc = function(dge, results_path, test_mode, num_pc = 30){
 
 # # A postcondition of this wrapper is that cluster 1 is not a legit cluster.
 # # It is either empty or the set of "rejects".
+#' @export
 cluster_wrapper = function(dge, results_path, test_mode, 
                            pc.use = NULL, 
                            method = c("DBSCAN"),
@@ -265,6 +271,7 @@ cluster_wrapper = function(dge, results_path, test_mode,
 
 # # This records summary information for each of the clusters (currently just size). 
 # # It also makes an extra copy in `named_clusters.txt` that can be hand-edited to manually name the clusters.
+#' @export
 cluster_summary = function(dge, results_path){
   clus_summ = data.frame(table(dge@ident))
   names(clus_summ) = c("Cluster", "Num Cells")
@@ -283,6 +290,7 @@ cluster_summary = function(dge, results_path){
 # # You put in the usual Seurat object and results path
 # # plus another Seurat object that you want to compare against,
 # # and names for each of them.
+#' @export
 compare_views = function(dge, results_path, comparator_dge, dge_name, comparator_name){
   figname = paste0("embedding=", dge_name, "|colors=", comparator_name, ".pdf")
   dge = Seurat::AddMetaData( dge, metadata = comparator_dge@ident[dge@cell.names] , col.name = "other_id" )
@@ -294,6 +302,7 @@ compare_views = function(dge, results_path, comparator_dge, dge_name, comparator
 ## ------------------------------------------------------------------------
 #' Return spline-smoothed expression plots over pseudotime.
 #'
+#' @export
 time_series = function( dge, gene, colour = "eday", main = NULL, x = "pseudotime", col = Thanksgiving_colors ){
   atae( length( gene ), 1 )
   if( is.null(main)){ main = paste0( "Expression by ", x)}
@@ -321,6 +330,7 @@ time_series = function( dge, gene, colour = "eday", main = NULL, x = "pseudotime
 
 #' Save plots from `times_series`.
 #'
+#' @export
 time_series_save = function( dge, 
                              results_path, 
                              gene,
@@ -391,6 +401,7 @@ time_series_save = function( dge,
 #' Note: this used to plot the ranks of the data, but now it doesn't unless you specify `use_rank = T`.
 #' If you want cols.use to work for categorical variables, then it should be named with the variable's levels.
 #' For a blank plot (default), set `colour = NULL`.
+#' @export
 custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("tSNE_1", "tSNE_2"),
                                alpha = 1, cols.use = blue_gray_red, use_rank = F, overplot_adjust = F, ...){
   
@@ -502,6 +513,7 @@ custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("t
 #' @param types Atomic character vector; can be longer than 1 element. If contains "PDF", you get a PDF back. If "PDF_no_leg", you get a PDF with no legend. If "PNG_PDF_split", you get back the points and bare axes in a PNG, plus text-containing elements in a PDF with no points. By default, does all three. Matching is not case sensitive.
 #' @param ... Additional arguments passed to `custom_feature_plot`.
 #'
+#' @export
 tsne_colored = function(dge, results_path, colour = NULL, fig_name = NULL,
                         axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", 
                         alpha = 1, height = 7, width = 8, 
@@ -567,6 +579,7 @@ tsne_colored = function(dge, results_path, colour = NULL, fig_name = NULL,
 ## ------------------------------------------------------------------------
 #' Save summary plots: eday, clusters, replicates, nUMI, and pseudotime if available.
 #'
+#' @export
 misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
                              axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", alpha = 1,
                              ident.use = "eday" ){
@@ -630,6 +643,7 @@ misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
 #' `axes` and `axes_description`.
 #' @param alpha Transparency of points
 #' @param ... Additional parameters are passed to `custom_feature_plot` or `time_series`
+#' @export
 save_feature_plots = function( dge, results_path, 
                                top_genes = NULL, 
                                by_cluster = NULL,
@@ -695,6 +709,7 @@ save_feature_plots = function( dge, results_path,
 # # Given a Seurat object and a list of gene names, this function returns genes 
 # # that are strongly correlated with those markers. 
 # # Return value: character vector.
+#' @export
 get_similar_genes = function( dge, markers, n, anticorr = F ){
   data.use = dge@scale.data
   if(!all(markers %in% rownames(data.use))){ 
@@ -714,6 +729,7 @@ get_similar_genes = function( dge, markers, n, anticorr = F ){
 }
 
 ## ------------------------------------------------------------------------
+#' @export
 do_enrichr = function( results_path, geneset, geneset_name, 
                        desired_db = c( "KEGG_2016", 
                                        "WikiPathways_2016",
@@ -883,7 +899,7 @@ sparse_axis = function(labels, side, ...){
 #' @param test_mode If `TRUE`, use only 100 genes and 100 cells.
 #' @details Each column is a cell and each row is a gene. Each gene is rescaled so that its peak expression is 1.
 #' This facilitates comparison within genes and across cells, though it's bad for comparison across genes.
-
+#' @export
 save_heatmap = function( dge, results_path, marker_info, 
                          desired_cluster_order = NULL,
                          main = "heatmap",
@@ -975,6 +991,7 @@ save_heatmap = function( dge, results_path, marker_info,
 #' If the cluster's expression values are stored in `x`, then `aggregator(x)` gets (normalized and) plotted.
 #' Optional parameter `desired_cluster_order` gets coerced to character. Should be a permutation of 
 #' `unique(Seurat::FetchData(dge, ident.use))`, though elements may be omitted.
+#' @export
 make_heatmap_for_table = function( dge, genes_in_order, 
                                    desired_cluster_order = NULL, 
                                    ident.use = "ident",
@@ -1069,6 +1086,7 @@ make_heatmap_for_table = function( dge, genes_in_order,
 
 
 ## ------------------------------------------------------------------------
+#' @export
 screen_receptor_ligand = function( is_expressed, results_path ){
   
   # # Get receptor-ligand pairs; annotate with tissues expressed; save
@@ -1142,7 +1160,8 @@ screen_receptor_ligand = function( is_expressed, results_path ){
 
 ## ------------------------------------------------------------------------
 
-# # Quickly explore many analysis options
+#' Quickly explore many parameter settings
+#' @export
 explore_embeddings = function(dge, results_path, all_params, test_mode = F){
   atat(is.data.frame( all_params ) )
   required_params = c( "cc_method",

@@ -1,4 +1,7 @@
 ## ------------------------------------------------------------------------
+#' Global quality control: check for Y genes, Xist and basic summary stats. 
+#'
+#' @export
 check_all_scRNA = function( results_path ){
   metadata = read.csv( PATH_TO_METADATA, header = T, stringsAsFactors = F )
   
@@ -51,8 +54,10 @@ check_all_scRNA = function( results_path ){
                quote = F, row.names = F, col.names = T, sep = "\t")
 }
 
-# # This function checks for female-specific and male-specific transcripts. 
-# # It accepts a numeric matrix of raw molecule counts with genes in the rownames.
+#' Check for female-specific and male-specific transcripts. 
+#'
+#' @details Accepts a numeric matrix of raw molecule counts with genes in the rownames.
+#' @export
 check_xist = function( raw_dge, rep_name, results_path ){
   dir.create.nice( results_path )
   print( paste0( "Checking for Xist in ", rep_name ) )
@@ -92,8 +97,9 @@ check_xist = function( raw_dge, rep_name, results_path ){
   }
 }
 
-# # This function checks for consistency across replicates as returned by `get_data_by_replicates`.
-# # It plots avg expression for each gene and proportion expressing each gene.
+#' This function checks for consistency across replicates as returned by `get_data_by_replicates`.
+#' It plots avg expression for each gene and proportion expressing each gene.
+#' @export
 scatterplot_replicates = function( results_path ){
   data_by_replicate = get_data_by_replicates()
   for( sample_type in names( data_by_replicate ) ){
@@ -127,8 +133,9 @@ scatterplot_replicates = function( results_path ){
   }
 }
 
-# # Another way of checking for consistency across replicates.
-# # Plot a dataset's tSNE embedding, but faceted by replicate and embryonic day.
+#' Another way of checking for consistency across replicates.
+#' Plot a dataset's tSNE embedding, but faceted by replicate and embryonic day.
+#' @export
 faceted_tsne = function( dge, results_path ){
   plot_df = rbind( FetchData(dge, c( "orig.ident", "eday", "tSNE_1", "tSNE_2" ) ),
                    mutate( FetchData(dge, c("orig.ident", "eday", "tSNE_1", "tSNE_2" ) ), 

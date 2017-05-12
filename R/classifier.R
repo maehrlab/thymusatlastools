@@ -3,9 +3,10 @@
 #' Using predefined genesets, form simple scores summarizing cTEC and mTEC transcriptomic signatures.
 #' 
 #' @param dge Seurat object
-#' @value results are added via `AddMetaData` using names "cTEC_signature", "mTEC_signature".
-#'
+#' @return results are added via `AddMetaData` using names "cTEC_signature", "mTEC_signature".
+#' 
 #' @details TEC = thymic epithelial cell; c = cortical; m = medullary
+#' @export
 add_cTEC_mTEC_signatures = function( dge ){
   active_genes = get_cTEC_mTEC_genes()
   cTEC_genes = active_genes %>% subset(., cluster == "cTEC", select = "gene", drop = T) 
@@ -23,7 +24,7 @@ add_cTEC_mTEC_signatures = function( dge ){
 #' @param results_path Plots are saved here.
 #' @param mTEC_thresh, @param cTEC_thresh Cells are excluded if they exceed both thresholds.
 #' If these are NULL, they are selected automatically. 
-#' @value A list with names "dge", "mTEC_thresh", and "cTEC_thresh."
+#' @return A list with names "dge", "mTEC_thresh", and "cTEC_thresh."
 #' 
 #'
 #' @details For threshold selection, we isolate some nearly-pure cTECs by ranking with all cells on 
@@ -32,6 +33,7 @@ add_cTEC_mTEC_signatures = function( dge ){
 #' rejection threshold. 
 #' The same process is used for mTEC threshold selection, but pure_fraction_mTEC defaults to just 2%.
 #' 
+#' @export
 remove_TEC_doublets = function( dge, 
                                 results_path,
                                 mTEC_thresh = NULL, 
@@ -69,15 +71,18 @@ remove_TEC_doublets = function( dge,
 }
 
 ## ------------------------------------------------------------------------
-# # Given a named vector x with counts of various cell types, returns expected doublet quantities for each possible pairing.
-# # Make sure you only feed this one replicate at a time! You can't get doublets across replicates.
-# # Assumes a doublet rate of 5%. Your mileage (and flow rates) may vary.
-# #
-# # Output is a named numeric vector of expected cell counts. 
-# # For names, every combination of names(x) should be present once in the output.
-# # Order doesn't matter, so labels get alphabetized and concatenated with '_'.
-# # Within-cluster doublets are included.
-# # E.g. you get BLD_END and BLD_BLD but not END_BLD.
+#' Given a named vector x with counts of various cell types, returns expected doublet quantities for each possible pairing.
+#' 
+#' @details Make sure you only feed this one replicate at a time! You can't get doublets across replicates.
+#' Assumes a doublet rate of 5%. Your mileage (and flow rates) may vary.
+#'
+#' Output is a named numeric vector of expected cell counts. 
+#' For names, every combination of names(x) should be present once in the output.
+#' Order doesn't matter, so labels get alphabetized and concatenated with '_'.
+#' Within-cluster doublets are included.
+#' E.g. you get BLD_END and BLD_BLD but not END_BLD.
+#'
+#' @export
 expected_doublet_counts = function( x, rate = 0.05 ){
   my_mat = matrix(x, nrow = length(x)) %*% matrix(x, ncol = length(x))
   my_mat = my_mat / sum( x )
@@ -130,7 +135,7 @@ expected_doublet_counts = function( x, rate = 0.05 ){
 #' @param reject_prop Expected rate of false rejections you're willing to tolerate
 #' on held-out training instances. Default is 1/100. This is not honest if `my_transform`
 #' is chosen using the training data, and it cannot account for batch effects.
-#' @value Seurat object identical to `dge_test` but with new/modified fields for 
+#' @return Seurat object identical to `dge_test` but with new/modified fields for 
 #' - `classifier_ident` (predicted class) 
 #' - `classifier_badness` (lower means higher confidence)
 #' - `classifier_probs_<each identity class from trainset>` (predicted class probabilities)
@@ -140,6 +145,7 @@ expected_doublet_counts = function( x, rate = 0.05 ){
 #' falls above a threshold (see `reject_prop`). Badness gets adjusted by cluster,
 #' because some clusters naturally are less concentrated on the principal subspace
 #' or the coordinates of interest.
+#' @export
 knn_classifier = function( dge_train, dge_test, ident.use = "ident", 
                            vars.all = NULL, my_transform = NULL, badness = NULL,
                            k = 25, reject_prop = 0.01 ){
@@ -251,10 +257,12 @@ knn_classifier = function( dge_train, dge_test, ident.use = "ident",
   return( dge_test )
 }
 
-# # Trains and saves a penalized logistic regression classifier.
-# # Uses Seurat::FetchData(training_dge, vars.all = ident.use ) as class labels.
-# # Results (`glmnet` object) and training data (Seurat object) get
-# # saved into a subdirectory of `results_path`. 
+#' Train and save a penalized logistic regression classifier.
+#'
+#' Uses Seurat::FetchData(training_dge, vars.all = ident.use ) as class labels.
+#' Results (`glmnet` object) and training data (Seurat object) get
+#' saved into a subdirectory of `results_path`. 
+#' @export
 train_save_classifier = function(training_dge, results_path, ident.use = "cell_type", genes.use, do.save = F ){
   
   # # Get labels
@@ -280,6 +288,8 @@ train_save_classifier = function(training_dge, results_path, ident.use = "cell_t
   return( mlr_mod )
 }
 
+#' Extract coefficients from a glmnet multiclass logistic regression model.
+#' 
 get_classifier_coefs = function( mlr_mod ){
   cell_types = names( coefficients( mlr_mod, newx = features, s = "lambda.min" ) )
   genes = rownames( coefficients( mlr_mod, newx = features, s = "lambda.min" )[[1]] )
@@ -297,6 +307,7 @@ get_classifier_coefs = function( mlr_mod ){
 #' @param dge a Seurat object 
 #' @param mlr_mod a glmnet multiclass logistic regression model.
 #' You can feed the output of `train_save_classifier` into the `mlr_mod` argument.
+#' @export
 classify_mlr = function( dge, mlr_mod ){
   genes_used = ( mlr_mod %>% coef %>% down_idx %>% attributes )$Dimnames %>% down_idx
   genes_used = setdiff( genes_used, "(Intercept)" )
@@ -323,6 +334,7 @@ classify_mlr = function( dge, mlr_mod ){
 #' If "hexagons", do AWESOME HEXAGON BINNING YEAHHHHHHH HEXAGONS.
 #' @param wheel_order Deprecated.
 #' @param do.density Deprecated.
+#' @export
 wheel_plot = function( dge, results_path, mlr_mod = NULL, class_labels = NULL, fig_name, 
                        colour_by = NULL, facet_by = NULL, style = "points",
                        wheel_order = NULL, do.density = NULL ){

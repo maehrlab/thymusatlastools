@@ -16,6 +16,9 @@ remove_TEC_doublets(dge, results_path, mTEC_thresh = NULL,
 \item{mTEC_thresh, }{@param cTEC_thresh Cells are excluded if they exceed both thresholds.
 If these are NULL, they are selected automatically.}
 }
+\value{
+A list with names "dge", "mTEC_thresh", and "cTEC_thresh."
+}
 \description{
 Remove intra-TEC doublets by finding cells with both a high cTEC signature and a high mTEC signature.
 }

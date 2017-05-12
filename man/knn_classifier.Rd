@@ -33,6 +33,12 @@ If user-specified, `my_transform` should accept and return matrices where rows a
 on held-out training instances. Default is 1/100. This is not honest if `my_transform`
 is chosen using the training data, and it cannot account for batch effects.}
 }
+\value{
+Seurat object identical to `dge_test` but with new/modified fields for 
+- `classifier_ident` (predicted class) 
+- `classifier_badness` (lower means higher confidence)
+- `classifier_probs_<each identity class from trainset>` (predicted class probabilities)
+}
 \description{
 Classify cells from one Seurat object in terms of another Seurat object's identity field, with a "reject option" for unfamiliar cells.
 }

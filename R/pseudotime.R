@@ -9,7 +9,7 @@
 #'
 #' @details This function will look for interesting genes of different types and save a ton of plots.
 #' The statistical inference is outsourced to Monocle via call_monocle_on_seurat (or Seurat via pc_as_pt).
-#'
+#' @export
 master_pt = function( dge, results_path, method = "monocle", earliest_day = NULL,
                       mp = list( reset_var_genes       = T, 
                                  log_scale_expr_thresh = 0.1,
@@ -54,7 +54,7 @@ master_pt = function( dge, results_path, method = "monocle", earliest_day = NULL
 #' from `Seurat::FetchData(dge, orient_var)` is fair game... as long as it's numeric.
 #' @param pc.use: which principal component to take
 #' 
-#' @value List with named elements:
+#' @return List with named elements:
 #' `$dge`: Seurat object with a `pseudotime` metadatum filled in
 #' `$gene_corrs`: dataframe with genes ordered by correlation with pseudotime.
 #'    Columns are `gene`, `corr`, and (if available from Jackstraw) `p_value`.
@@ -118,7 +118,7 @@ pc_as_pt = function( dge, pc.use = 1, orient_var = "eday" ){
 #' - find genes that respond strongly to pseudotime.
 #' - smooth those genes' expression to form an overall pseudotime trend.
 #' - cluster genes based on smoothed expression patterns that have been shifted/scaled to the unit interval.
-#'
+#' @export
 smooth_and_cluster_genes = function( dge, results_path, 
                                      num_periods_initial_screen = 20, 
                                      prop_genes_keep = 0.1,
@@ -243,7 +243,8 @@ smooth_and_cluster_genes = function( dge, results_path,
 
 #' Draw overlaid line plots of gene clusters from output of `smooth_and_cluster_genes`.
 #'
-#' @param facet_ncol For resulting facet plots, number of columns. 
+#' @param facet_ncol For resulting facet plots, number of columns.
+#' @export
 facet_plot_gene_clusters = function( dge, results_path, 
                                      cluster_mod, 
                                      kmeans_features,
@@ -288,6 +289,7 @@ facet_plot_gene_clusters = function( dge, results_path,
 #' @param gap_size White bars separating clusters are formed by adding fake genes. gap_size is how many fake genes per bar.
 #' @param genes_use 
 #' @param genes_to_label
+#' @export
 heatmap_gene_clusters = function( dge, results_path, 
                                   cluster_mod, 
                                   smoothers,
@@ -453,6 +455,7 @@ heatmap_gene_clusters = function( dge, results_path,
 #' @details If converter is c("a", "a", "b", "c"), you get edges labeled as a 
 #' four-colour muted rainbow next to a grayscale with light, light, medium, and dark.
 #' This is to convey that the first two tips have been somehow grouped.
+#' @export
  plot_dendro_with_rect = function( hc, converter, main = "Dendrogram" ){
     p = ggdendro::ggdendrogram(hc)
     p = p + annotate( geom = "tile", x = 1:length(hc$order), 
@@ -467,6 +470,7 @@ heatmap_gene_clusters = function( dge, results_path,
   }
 #' Plot a dendrogram and also cut it to merge input into `num_desired` groups.
 #'
+#' @export
 dendrogram_merge_points = function( X, num_desired, results_path, 
                                     FUN = function(x) hclust(dist(x), method = "ward.D2"), 
                                     REORDER_FUN = function(hc) as.hclust(stats::reorder(as.dendrogram(hc), 1:nrow(X))), 
@@ -499,6 +503,7 @@ dendrogram_merge_points = function( X, num_desired, results_path,
 #' Extract data from a Seurat object and run Monocle, returning a Monocle object.
 #'
 #'
+#' @export
 call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_day = NULL ){
   
   attach( monocle_params )
@@ -593,111 +598,14 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   return(mobj)  
 }
 
-# # Monocle often returns dozens of cell states.
-# # This function simplifies them, compressing everything into the three branches
-# # of a "Y" shape.
-# # `mobj` is a CellDataSet object.
-# # It uses a bunch of heuristics, because if I could do this properly, then I wouldn't need Monocle.
-simplify_branches = function( mobj ){
-  
-  # # Fix the tips at the start of pseudotime, the farthest point from that, and the farthest point from 
-  # # those two, where distance to the pair is the minimum over the individual distances.
-  root_idx = which.min( mobj@phenoData@data[["Pseudotime"]] )
-  root_embedding = mobj@reducedDimS[, root_idx]
-  tip1_idx = which.max( apply( X = mobj@reducedDimS, MARGIN = 2, FUN = distance_sq, y = root_embedding ) )
-  tip1_embedding = mobj@reducedDimS[, tip1_idx]
-  min_dist_sq_other_tips = function(x) {
-    d1 = distance_sq( x, tip1_embedding )
-    d2 = distance_sq( x, root_embedding )
-    return( min( d1, d2 ) )
-  }
-  tip2_idx = which.max( apply( X = mobj@reducedDimS, MARGIN = 2, FUN = min_dist_sq_other_tips ) )
-  tip2_embedding = mobj@reducedDimS[, tip2_idx]
-  tips = matrix(NA, ncol = 2, nrow = 3)
-  tips[ 1, ] = root_embedding
-  tips[ 2, ] = tip1_embedding
-  tips[ 3, ] = tip2_embedding
-  
-  # # For fixed tips and a given center, return the total distance from each point
-  # # to the nearest branch, where the branch is a ray terminating at the center and extending
-  # # through the branch tip.
-  # # Count only three cells per state, randomly selected.
-  cells_counted = mobj@phenoData@data %>% rownames
-  cells_counted = aggregate.nice( cells_counted, by = mobj@phenoData[["State"]], FUN = sample, size=3)
-  cells_counted %<>% c
-  get_branchmodel_objective = function( center, return_assignments = F ){
-    get_distance_sq_to_branches = function( x ){
-      return( c( apply( X = tips, MARGIN = 1, FUN = distance_sq_to_ray, tip2 = center, point = x) ) )
-    }
-    distances = apply(X = mobj@reducedDimS, MARGIN = 2, FUN = get_distance_sq_to_branches )
-    assignments = apply(X = distances, MARGIN = 2, FUN = which.min)
-    if( return_assignments ){
-      return( assignments )
-    }
-    
-    index_mat = cbind( assignments, 1:ncol(distances))
-    index_mat = index_mat[ cells_counted, ]
-    return( sum( sqrt( distances[index_mat] ) ) )
-  }
-  
-  # # Place the branchpoint so as to minimize the measure of deviation defined above.
-  # # Assign each cell to the nearest branch.
-  all_cells = mobj@phenoData@data %>% rownames
-  tip_names = all_cells[ c(root_idx, tip1_idx, tip2_idx) ]
-  q1 = quantile( mobj@phenoData[["Pseudotime"]], 0.1 )
-  q2 = quantile( mobj@phenoData[["Pseudotime"]], 0.9 )
-  pt = mobj@phenoData[[ "Pseudotime"]]
-  names(pt) = mobj@phenoData@data %>% rownames
-  cells_in_middle = all_cells[ q1 < pt[all_cells] & pt[all_cells] < q2 ]
-  candidates = sample( setdiff( cells_in_middle, tip_names ), size = 100, replace = F)
-  sse_list = apply( X = mobj@reducedDimS[, candidates],
-                    MARGIN = 2, 
-                    FUN = get_branchmodel_objective )
-  branch_point_barcode = names( which.min( sse_list ) )
-  branch_point_embedding = mobj@reducedDimS[, branch_point_barcode]
-  mobj@phenoData@data[["branch"]] = get_branchmodel_objective( branch_point_embedding, return_assignments = T )[ all_cells ]
-  plot_df = data.frame( x = mobj@reducedDimS[1, ],
-                        y = mobj@reducedDimS[2, ], 
-                        State = as.factor( mobj@phenoData[["State"]] ), 
-                        Branch = as.factor( mobj@phenoData[["branch"]] ) )
-  
-  # # Visual sanity check and return.
-  p = ggplot( data = plot_df ) + 
-    ggtitle("Simplified branch assignments") +
-    geom_point( aes( x = x, y = y, colour = Branch ) ) + 
-    geom_line( data = as.data.frame( rbind( branch_point_embedding, tips[1, ] ) ), aes( x = V1, y = V2 ) )  + 
-    geom_line( data = as.data.frame( rbind( branch_point_embedding, tips[2, ] ) ), aes( x = V1, y = V2 ) )  + 
-    geom_line( data = as.data.frame( rbind( branch_point_embedding, tips[3, ] ) ), aes( x = V1, y = V2 ) )  + 
-    geom_point( data = plot_df[mobj@auxOrderingData$DDRTree$branch_points, ],  aes( x = x, y = y ), colour = "purple"  ) 
-  print( p )
-  return( mobj )
-}
 
-# # Calculates the distance between `point` and the closest vector of the form
-# # `a( tip1 - tip2 ) + tip2` where a >= 0. 
-# # Helper for `simplify_branches`.
-# # All inputs should be numeric vectors of the same length.
-distance_sq_to_ray = function( tip1, tip2, point ) {
-  if( all( tip1 == point ) | all( tip2 == point ) ){ return(0) }
-  point_centered = ( point - tip2 )
-  tip1_centered  = ( tip1  - tip2 )
-  point_centered_scaled  = point_centered / sqrt( distance_sq ( point_centered, 0 ) )
-  tip1_centered_scaled   = tip1_centered  / sqrt( distance_sq ( tip1_centered,  0 ) )
-  c_cos_theta = sum( tip1_centered_scaled * point_centered_scaled ) * sqrt( distance_sq ( point_centered, 0 ) )
-  comp_parallel =  c_cos_theta * tip1_centered_scaled
-  if( 0 < c_cos_theta ){
-    return ( distance_sq( point_centered, comp_parallel ) )
-  } else {
-    endpoint_diffs = c( distance_sq ( point, tip2 ), 
-                        distance_sq ( point, tip1 ) )
-    return ( min ( endpoint_diffs ) )
-  }
-}
-
-# # This function takes Seurat object and a finished object from a pseudotime analysis package
-# # It transfers info from the latter to the former, guaranteeing that the Seurat object
-# # will have complete metadata fields of the following names:
-# # `pseudotime`, `branch`, `branch_viz_1`, `branch_viz_2`
+#' Transfer data from a pseudotime modeling object to a Seurat object.
+#' 
+#' @details This function takes Seurat object and a finished object from a pseudotime analysis package
+#' It transfers info from the latter to the former, guaranteeing that the Seurat object
+#' will have complete metadata fields of the following names:
+#' `pseudotime`, `branch`, `branch_viz_1`, `branch_viz_2`
+#' @export
 add_pseudotime_to_seurat = function(dge, pt_obj, pt_method = "monocle" ){
   if( pt_method == "monocle" ){
     to_add = data.frame(
@@ -745,6 +653,7 @@ add_pseudotime_to_seurat = function(dge, pt_obj, pt_method = "monocle" ){
 # # augmented matrix [mat_samp | 1]. In other terms, mat_samp is translated and linearly transformed to 
 # # minimize the l2 distance to mat_ref.
 # # This function always returns a numeric matrix with ncol = ncol(mat_ref) and nrow = nrow(mat_samp).
+#' @export
 align_embedding_to_reference = function(mat_samp, mat_ref, do.plot = F){
   
   # # Handle vectors

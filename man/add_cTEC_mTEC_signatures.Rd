@@ -9,6 +9,9 @@ add_cTEC_mTEC_signatures(dge)
 \arguments{
 \item{dge}{Seurat object}
 }
+\value{
+results are added via `AddMetaData` using names "cTEC_signature", "mTEC_signature".
+}
 \description{
 Using predefined genesets, form simple scores summarizing cTEC and mTEC transcriptomic signatures.
 }

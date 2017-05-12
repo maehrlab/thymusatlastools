@@ -2,7 +2,7 @@
 #' Rescale every cell to a certain amount of UMIs, where
 #' that amount is selected by rounding up the median UMI count up to the next power of 10.
 #'
-#'
+#'@export
 normalize_cpx_amt = function(dge, results_path, do.plot = T){
 
   umis_by_cell = apply( dge, 2, sum )
@@ -34,6 +34,7 @@ assertthat::are_equal(normalize_cpx_amt(demo1, results_path = "~/Desktop/scRNA_j
 #' (by default) 3 cells and keeps all cells with at least 1000 genes. It reports some 
 #' summary figures, plotting number of genes by cell, num UMIs by cell, and number of cells by
 #' gene. 
+#'@export
 seuratify_thy_data = function(raw_dge, results_path, test_mode = F, 
                               min.genes = 1000, min.cells = 3, do.plot = T){
   atat(1 < raw_dge %>% dim %>% min %>% min)
@@ -104,6 +105,7 @@ seuratify_thy_data = function(raw_dge, results_path, test_mode = F,
 #' Because the `@raw.data` slot was filled in wrong in some of my Seurat objects,
 #' this can use `load_thymus_profiling_data` to get the raw data.
 #' To toggle this behavior, set `retrieve_anew = {T,F}`.
+#'@export
 deseuratify_raw_data = function( seurat_dge, retrieve_anew = F ){
   if( !retrieve_anew ){
     raw_dge = seurat_dge@raw.data
@@ -132,6 +134,7 @@ deseuratify_raw_data = function( seurat_dge, retrieve_anew = F ){
 #'
 #' @param dge_list list of matrices with genes as rows and cell barcodes as columns. Duplicate barcodes across datasets cause errors; I recommend you append the sample ID.
 #' @details `dge_merge_list` converts the digital gene expression matrices to dataframes with genes as columns, merges them, then converts the result back, all without disturbing the gene labels. A gene will be included if it appears in any of the datasets. If a gene appears in one dataset but not another, zeroes will be filled in for missing expression levels.
+#'@export
 dge_merge_list = function(dge_list){
   # Allow duplicate cells but not duplicate genes
   all_genes = Reduce( f = union, x = lapply( dge_list, rownames ) )

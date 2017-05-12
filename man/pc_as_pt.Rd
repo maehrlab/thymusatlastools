@@ -15,6 +15,12 @@ from `Seurat::FetchData(dge, orient_var)` is fair game... as long as it's numeri
 
 \item{pc.use:}{which principal component to take}
 }
+\value{
+List with named elements:
+`$dge`: Seurat object with a `pseudotime` metadatum filled in
+`$gene_corrs`: dataframe with genes ordered by correlation with pseudotime.
+   Columns are `gene`, `corr`, and (if available from Jackstraw) `p_value`.
+}
 \description{
 Take a principal component (first by default) and return a list of results gained by interpreting that PC as a pseudotime axis.
 }
