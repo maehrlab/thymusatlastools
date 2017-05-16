@@ -2,12 +2,10 @@
 % Please edit documentation in R/quality_control.R
 \name{faceted_tsne}
 \alias{faceted_tsne}
-\title{Another way of checking for consistency across replicates.
-Plot a dataset's tSNE embedding, but faceted by replicate and embryonic day.}
+\title{Plot a dataset's tSNE embedding, but faceted by replicate and embryonic day.}
 \usage{
 faceted_tsne(dge, results_path)
 }
 \description{
-Another way of checking for consistency across replicates.
 Plot a dataset's tSNE embedding, but faceted by replicate and embryonic day.
 }
