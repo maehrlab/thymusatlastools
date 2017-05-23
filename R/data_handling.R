@@ -1,4 +1,21 @@
 ## ------------------------------------------------------------------------
+
+#' Export raw and normalized data from a Seurat object.
+#'
+export_from_seurat = function( dge, results_path, name ){
+  desired_metadata = dge@data.info[, c( "nGene", "nUMI", "orig.ident", "eday", "IG1.S", "S", "G2.M", "M", "M.G1" )]
+  raw_dge = deseuratify_raw_data( dge )
+  desired_total = normalize_cpx_amt( raw_dge, results_path, do.plot = F )
+  normalized_dge = apply(raw_dge, 2, div_by_sum)*desired_total
+  write.table( raw_dge,        file.path( results_path, "_counts_raw.data" ), 
+               row.names = T, col.names = T, quote = F, sep = "\t" )
+  write.table( normalized_dge, file.path( results_path, "_counts_scaled.data" ), 
+               row.names = T, col.names = T, quote = F, sep = "\t" )
+  write.table( desired_metadata, file.path( results_path, "_metadata.data" ), 
+               row.names = T, col.names = T, quote = F, sep = "\t" )
+}
+
+
 #' Rescale every cell to a certain amount of UMIs, where
 #' that amount is selected by rounding up the median UMI count up to the next power of 10.
 #'
@@ -151,7 +168,7 @@ dge_merge_list = function(dge_list){
   }
   #Results should have at least as many genes as the input with the most genes
   #the number of barcodes should equal the sum of the total barcodes.
-  input_dimensions = Reduce(rbind, lapply(dge_list, dim))
+  input_dimensions = Reduce(rbind, lapply(dge_list, dim)) %>% matrix(ncol = 2)
   assertthat::assert_that(dim(new_dge)[1] >= max(input_dimensions[,1]))
   assertthat::assert_that(dim(new_dge)[2] == sum(input_dimensions[,2]))
   assertthat::assert_that(!is.null(colnames(new_dge)))

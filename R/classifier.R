@@ -205,7 +205,7 @@ knn_classifier = function( dge_train, dge_test, ident.use = "ident",
                           k=k, algorithm=c( "cover_tree" ) )
   train_labels = FetchData( dge_train, ident.use )[[1]]
   get_label = function(idx) train_labels[idx]
-  empir_prob = function(x) factor( x, levels = unique( dge_train@ident ) ) %>% table %>% div_by_sum
+  empir_prob = function(x) factor( x, levels = unique( train_labels ) ) %>% table %>% div_by_sum
   classifier_probs = apply( apply( nn_out$nn.index, 2, get_label ), 1, FUN = empir_prob ) %>% t %>% as.data.frame
   classifier_ident = apply( classifier_probs, 1, function(x) names( which.max( x ) ) )
     

@@ -4,7 +4,7 @@
 \alias{get_mouse_tfs}
 \title{Maehr lab list of mouse transcription factors.}
 \usage{
-get_mouse_tfs(capitalization = "all")
+get_mouse_tfs()
 }
 \description{
 Maehr lab list of mouse transcription factors.

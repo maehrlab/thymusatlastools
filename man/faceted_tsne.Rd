@@ -2,10 +2,11 @@
 % Please edit documentation in R/quality_control.R
 \name{faceted_tsne}
 \alias{faceted_tsne}
-\title{Plot a dataset's tSNE embedding, but faceted by replicate and embryonic day.}
+\title{Plot a dataset's tSNE embedding faceted by experimental metadata (default replicate and eday).}
 \usage{
-faceted_tsne(dge, results_path)
+faceted_tsne(dge, results_path, ident.use = "orig.ident", eday.use = "eday",
+  colour = "eday", width = 20, height = 12)
 }
 \description{
-Plot a dataset's tSNE embedding, but faceted by replicate and embryonic day.
+Plot a dataset's tSNE embedding faceted by experimental metadata (default replicate and eday).
 }
