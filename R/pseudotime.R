@@ -118,6 +118,7 @@ pc_as_pt = function( dge, pc.use = 1, orient_var = "eday" ){
 #' - find genes that respond strongly to pseudotime.
 #' - smooth those genes' expression to form an overall pseudotime trend.
 #' - cluster genes based on smoothed expression patterns that have been shifted/scaled to the unit interval.
+#'
 #' @export
 smooth_and_cluster_genes = function( dge, results_path, 
                                      num_periods_initial_screen = 20, 

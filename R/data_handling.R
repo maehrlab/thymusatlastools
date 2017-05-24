@@ -59,45 +59,45 @@ seuratify_thy_data = function(raw_dge, results_path, test_mode = F,
   total_desired = normalize_cpx_amt( raw_dge, results_path )
   raw_dge_norm = apply( X = raw_dge, MARGIN = 2, FUN = div_by_sum ) * total_desired
   raw_dge_norm = as( raw_dge_norm, "sparseMatrix" )
-  seurat_dge = Setup( new( "seurat", raw.data = log2( 1+raw_dge_norm ) ),
-                      min.cells = min.cells * (1 - test_mode), # 0 if test_mode; else 3
-                      min.genes = min.genes * (1 - test_mode), # 0 if test_mode; else min.genes
-                      is.expr=0, 
-                      do.logNormalize = F, 
-                      project = "thymus_scRNAseq", 
-                      names.delim = "\\|",
-                      names.field = 2 )
+  seurat_dge = Seurat::Setup( new( "seurat", raw.data = log2( 1+raw_dge_norm ) ),
+                              min.cells = min.cells * (1 - test_mode), # 0 if test_mode; else 3
+                              min.genes = min.genes * (1 - test_mode), # 0 if test_mode; else min.genes
+                              is.expr=0, 
+                              do.logNormalize = F, 
+                              project = "thymus_scRNAseq", 
+                              names.delim = "\\|",
+                              names.field = 2 )
   
   # # Make sure the raw data is just UMI counts and update the nUMI field, which will be
   # # filled incorrectly given the above
   seurat_dge@raw.data = raw_dge[ seurat_dge@data %>% rownames, 
                                  seurat_dge@data %>% colnames ]
-  seurat_dge %<>% AddMetaData( col.name = "nUMI", 
-                               metadata = setNames( colSums( seurat_dge@raw.data ),
-                                                    colnames( seurat_dge@raw.data ) ) )
+  seurat_dge %<>% Seurat::AddMetaData( col.name = "nUMI", 
+                                       metadata = setNames( colSums( seurat_dge@raw.data ),
+                                                            colnames( seurat_dge@raw.data ) ) )
   
   # # Plot results
   if(do.plot){
     dir.create.nice( file.path(results_path, "QC" ) )
     genes_by_cell = apply( raw_dge, 2, nnz )
     atat( length( genes_by_cell ) == ncol( raw_dge ) ) # num cells = num cols
-    pdf(file.path(results_path, "QC", "total_genes_by_cell.pdf"))
     {
+      pdf(file.path(results_path, "QC", "total_genes_by_cell.pdf"))
       hist(log10(genes_by_cell), breaks = 40,
            xlab = "log10 gene count", main = "Number of genes by cell")
       abline(v = log10( min.genes ) )
+      dev.off()
     }
-    dev.off()
     
     cells_by_gene = apply( raw_dge, 1, nnz )
     atat( length( cells_by_gene ) == nrow( raw_dge )[1] ) # num genes = num rows
-    pdf(file.path(results_path, "QC", "total_cells_by_gene.pdf"))
     {
+      pdf(file.path(results_path, "QC", "total_cells_by_gene.pdf"))
       hist(log10(cells_by_gene), breaks = 40,
            xlab = "log10 cell count", main = "Number of cells by gene")
       abline(v = log10( min.cells ) )
+      dev.off()
     }
-    dev.off()
     
     print( paste0("There are ", 
                   length(cells_by_gene), " genes and ", 
@@ -106,7 +106,6 @@ seuratify_thy_data = function(raw_dge, results_path, test_mode = F,
                    length( genes_by_cell ) - ncol( seurat_dge@data ), " cells were excluded from the Seurat object."))
     
   }
-
   return(seurat_dge)
 }
 
