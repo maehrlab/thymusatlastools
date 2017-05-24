@@ -409,8 +409,8 @@ harmonize_species = function( gene_list, dge ){
                     "Attempting to add species for you via `add_maehrlab_metadata( dge, 'species' )`.") )
     dge = add_maehrlab_metadata( dge, "species" )
   } 
-  has_human = "human" %in% FetchData(dge, "species")
-  has_mouse = "mouse" %in% FetchData(dge, "species")
+  has_human = "human" %in% FetchData(dge, "species")[[ "species" ]]
+  has_mouse = "mouse" %in% FetchData(dge, "species")[[ "species" ]]
   if( has_human ){
     gene_list %<>% union( get_ortholog( gene_list, from = "mouse", to = "human" ) )
   }
