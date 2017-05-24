@@ -134,7 +134,7 @@ add_cc_score = function(dge, method = "average"){
   # # - intersect gene list with available genes
   geneset = as.list(phases); names(geneset) = phases
   for( phase in phases ){
-    if ( !species %in%AvailableData( dge ) ){
+    if ( !"species" %in% AvailableData( dge ) ){
       warning(paste("No species metadata present. Assuming mouse, but please add species metadata.", 
                     "Try `object = add_maerhlab_metadata(object, 'species')` with `add_maerhlab_metadata`",
                     "from either of the packages `thymusatlasdataprivate` or `thymusatlasdatapublic`." ) )
