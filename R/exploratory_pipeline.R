@@ -580,7 +580,7 @@ tsne_colored = function(dge, results_path, colour = NULL, fig_name = NULL,
 }
 
 ## ------------------------------------------------------------------------
-#' Save summary plots: eday, clusters, replicates, nUMI, and pseudotime if available.
+#' Save summary plots: plain gray, eday, clusters, replicates, nUMI, nGene, and pseudotime if available.
 #'
 #' @export
 misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
@@ -588,7 +588,7 @@ misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
                              ident.use = "eday" ){
   results_path = file.path( results_path, "summaries" )
   
-  # # Checks automatically whether the colour variable is available
+  # # Plot summary, checking automatically whether the colour variable is available
   fplot = function( fig_name, colour, ... ){
     if( length( colour ) == 0 || colour %in% c( names( dge@data.info ), "ident" ) ){
       tsne_colored( dge = dge, results_path,
@@ -598,35 +598,20 @@ misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
       print( paste0( "Skipping summary of ", colour, " because it's not available." ) )
     }
   }
-
-  # # lots of custom-color feature plots
-  replicate_colors = c( "orange", "blue", "red", "brown", "pink", "black", "green", "purple", "lightcoral" )
-  fplot( "replicates.pdf", "rep", cols.use = gplots::col2hex( replicate_colors ) )
-  fplot( "cell_type.pdf", "cell_type" )
-  fplot( fig_name = "plain_gray.pdf", colour = NULL )
-  fplot( "clusters.pdf", "ident" )
-  fplot( "samples.pdf", "orig.ident" )
-  fplot( "nGenes.pdf", "nGenes" )
-  fplot( "branch.pdf"  , "branch" )
-  fplot( "day.pdf", "eday", cols.use = Thanksgiving_colors )
-  if( "human_labeled_clusters" %in% names( dge@data.info ) && !is.null( clusters_with_names ) ){
-    cu = clusters_with_names$color
-    names(cu) = clusters_with_names$cluster_name %>% as.character
-    fplot( "human_labeled_clusters.pdf", "human_labeled_clusters" )
-  }
   
-  # # add branch ID and PT from Monocle or similar
-  if( "pseudotime" %in% names( dge@data.info ) ) {
-    ggsave( filename = file.path( results_path, "pseudotime_by_eday_box.pdf"),
-            plot = ggplot( dge@data.info, aes( y = pseudotime, x = factor( eday ) ) ) + geom_boxplot() )
-    dge = AddMetaData( dge, col.name = "DI", 
-                       metadata = FetchData(dge, "pseudotime") %>% vectorize_preserving_rownames )
-    ggsave( filename = file.path( results_path, "di_by_eday_density.pdf"),
-            plot = ggplot( dge@data.info ) + ggtitle( "DI by day" ) + 
-            geom_density( aes( x = DI, fill = eday, group = eday ), alpha = 0.4 ) +
-              scale_fill_gradientn( colours = Thanksgiving_colors ) )
+  fplot( fig_name = "plain_gray.pdf", colour = NULL )
+  fplot( "replicates.pdf", "rep" )
+  fplot( "cell_type.pdf" , "cell_type" )
+  fplot( "clusters.pdf"  , "ident" )
+  fplot( "samples.pdf"   , "orig.ident" )
+  fplot( "nGenes.pdf"    , "nGenes" )
+  fplot( "branch.pdf"    , "branch" )
+  fplot( "day.pdf"       , "eday" )
+  if( all( c("pseudotime", "eday") %in% AvailableData( dge ) ) ) {
     fplot( fig_name = "pseudotime.pdf" , colour = "pseudotime" )
-    fplot( fig_name = "DI.pdf" , colour = "DI", cols.use = Thanksgiving_colors )
+    ggsave( filename = file.path( results_path, "pseudotime_by_eday_box.pdf"),
+            plot = ggplot( FetchData( dge, c( "pseudotime", "eday" ) ), 
+                           aes( y = pseudotime, x = factor( eday ) ) ) + geom_boxplot() )
   }
 }
 

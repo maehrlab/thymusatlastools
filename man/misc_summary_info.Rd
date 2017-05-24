@@ -2,12 +2,12 @@
 % Please edit documentation in R/exploratory_pipeline.R
 \name{misc_summary_info}
 \alias{misc_summary_info}
-\title{Save summary plots: eday, clusters, replicates, nUMI, and pseudotime if available.}
+\title{Save summary plots: plain gray, eday, clusters, replicates, nUMI, nGene, and pseudotime if available.}
 \usage{
 misc_summary_info(dge, results_path, clusters_with_names = NULL,
   axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", alpha = 1,
   ident.use = "eday")
 }
 \description{
-Save summary plots: eday, clusters, replicates, nUMI, and pseudotime if available.
+Save summary plots: plain gray, eday, clusters, replicates, nUMI, nGene, and pseudotime if available.
 }
