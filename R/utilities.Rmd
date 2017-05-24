@@ -419,6 +419,28 @@ convert_species_dge = function( raw_dge, from = "human", to = "mouse"){
   return( raw_dge_converted )
 }
 
+#' Given a gene list and a seurat object, return a gene list compatible with 'species' in the seurat object.
+#'
+#' @export
+harmonize_species = function( gene_list, dge ){
+  dge = add_maehrlab_metadata()
+  if( !"species" %in% AvailableData( dge ) ){
+    warning( paste( "Please add a `species` field to the metadata containing 'human', 'mouse', or some of each.\n",
+                    "Attempting to add species for you via `add_maehrlab_metadata( dge, 'species' )`.") )
+    dge = add_maehrlab_metadata( dge, "species" )
+  } 
+  has_human = "human" %in% FetchData(dge, "species")
+  has_mouse = "mouse" %in% FetchData(dge, "species")
+  if( has_human ){
+    gene_list %<>% union( get_ortholog( gene_list, from = "mouse", to = "human" ) )
+  }
+  if( has_mouse ){
+    gene_list %<>% union( get_ortholog( gene_list, from = "human", to = "mouse" ) )
+  }
+  gene_list %<>% intersection( AvailableData( dge ) )
+  return( gene_list )
+}
+
 #' Remove species-specific genes from a Seurat object.
 #'
 #'@details The input is a Seurat object with a metadata field "species".

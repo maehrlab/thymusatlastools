@@ -97,7 +97,7 @@ var_gene_select = function( dge, results_path, test_mode = F,
   # # Save variable genes and parameters
   vgsrp = file.path( results_path, "var_gene_select" )
   dir.create.nice( vgsrp )
-  cell_markers = get_rene_markers()
+  cell_markers = get_rene_markers() %>% harmonize_species(dge)
   variable_cell_markers = intersect( cell_markers$marker, as.character( dge@var.genes ) )
   variable_cell_markers = c(paste0(length(variable_cell_markers), "total"), variable_cell_markers)
   text2file(file.path(vgsrp, "markers_among_variable_genes.txt"), variable_cell_markers)
@@ -692,7 +692,7 @@ save_feature_plots = function( dge, results_path,
   # # If gene_list is not given, gene_list_name is replaced with "rene_picks"
   # # gene_list_name defaults to "unknown" if only gene_list_name not given
   if( is.null( gene_list ) ){
-    gene_list = get_rene_markers()$marker
+    gene_list = get_rene_markers()$marker %>% harmonize_species(dge)
     if( !is.null( gene_list_name ) ){
       warning("Overwriting gene_list_name argument with 'rene_picks' since gene_list was not given.")
     }
