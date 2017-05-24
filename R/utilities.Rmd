@@ -436,7 +436,7 @@ harmonize_species = function( gene_list, dge ){
   if( has_mouse ){
     gene_list %<>% union( get_ortholog( gene_list, from = "human", to = "mouse" ) )
   }
-  gene_list %<>% intersection( AvailableData( dge ) )
+  gene_list %<>% intersect( AvailableData( dge ) )
   return( gene_list )
 }
 
