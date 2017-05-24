@@ -153,8 +153,11 @@ add_cc_score = function(dge, method = "average"){
   # # - intersect gene list with available genes
   geneset = as.list(phases); names(geneset) = phases
   for( phase in phases ){
-    dge = add_maehrlab_metadata(dge, variable_to_add = "species")
-    if( any( Seurat::FetchData(dge, "species")[[1]] == "human" ) ){
+    if ( !species %in%AvailableData( dge ) ){
+      warning(paste("No species metadata present. Assuming mouse. Please add species metadata --", 
+                    "try `object = add_maerhlab_metadata(object, 'species')` with `add_maerhlab_metadata`",
+                    "from either of the packages `thymusatlasdataprivate` or `thymusatlasdatapublic`.")
+    } else if( any( Seurat::FetchData(dge, "species")[[1]] == "human" ) ){
       human_ortho = unlist( lapply( X = macosko_cell_cycle_genes[, phase], 
                                     FUN = get_ortholog, from = "human", to = "mouse" ) )
       human_ortho = human_ortho[!is.na( human_ortho )]
