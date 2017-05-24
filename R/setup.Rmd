@@ -110,29 +110,9 @@ get_ortholog_table = function(){
 }
 
 
-
-showcol = function(col) { pie(rep(1, length(col)), col = col) }
 CC_PHASES = c("IG1.S", "S", "G2.M", "M", "M.G1")
-black_white = c( colorspace::sequential_hcl( 30, h = 0,   c. = c(0, 0),     l = c( 0, 100  ) ) )
 blue_gray_red  = colorspace::diverge_hcl   ( 30,          c = 180,          l = c( 40, 80  ) )
-blue_purple_red = colorRampPalette(c("blue", "red"))(30) 
-red_yellow  = c( colorspace::sequential_hcl( 15, h = 0,   c. = c(150, 0),   l = c( 40, 30  ) ),
-                 colorspace::sequential_hcl( 15, h = 40,  c. = c(0, 80),    l = c( 30, 80  ) ) )
-yellow_red  = c( colorspace::sequential_hcl( 18, h = 60,  c. = c(100, 100), l = c( 100, 80 ) ),
-                 colorspace::sequential_hcl( 12, h = 0,   c. = c(100, 160), l = c( 80, 40  ) ) )
-blue_yellow = c( colorspace::sequential_hcl( 15, h = 260, c. = c(50, 0),    l = c( 13, 65 ) ), 
-                 colorspace::sequential_hcl( 15, h = 40,  c. = c(0, 80),    l = c( 65, 95 ) ) )
-human_mouse_vvv_colors = c( "goldenrod4", "lightgoldenrod2", "goldenrod3", "goldenrod1", 
-                            "cadetblue4", "blue4", "cadetblue3", "blue1", "cadetblue1", 
-                            "firebrick4","deeppink3", "firebrick3","palevioletred1", "firebrick1")
 Thanksgiving_colors = c("yellow", "orange", "red", "brown")
-imitate_cubehelix = c("#fff6e3",
-                      "#ddcac4",
-                      "#bca0a6",
-                      "#9b7789",
-                      "#7b506d",
-                      "#5b2a52",
-                      "#3c0038")
 ```
 
 

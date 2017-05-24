@@ -176,3 +176,39 @@ dge_merge_list = function(dge_list){
 }
 
 
+## ------------------------------------------------------------------------
+
+#' Given a Seurat object, add information about our experiments.
+#'
+#' @details It looks in `maehrlab_metadata` for a column named `variable_to_add` and adds that to @data.info with the 
+#' name `new_name` (default is `variable_to_add`).
+#' It relies on being able to match "Sample_ID" to "orig.ident".
+#'@export
+add_maehrlab_metadata = function( dge, variable_to_add, new_name = NULL, NA_strings = c("NA", ""),
+                                  maehrlab_metadata = thymusatlasdatapublic::get_metadata() ){
+  
+  unknown_sample = !all(levels( dge@data.info$orig.ident ) %in% maehrlab_metadata[["Sample_ID"]] )
+  unknown_var =    !variable_to_add %in% names( maehrlab_metadata ) 
+  if( unknown_sample || unknown_var ){
+    stop(paste( "Metadata not found. Solutions:\n",
+                "1) To list available metadata fields and sample IDs, try     \n",
+                "         names(thymusatlasdatapublic::get_metadata())        \n",
+                "    or                                                       \n",
+                "        thymusatlasdatapublic::get_metadata()[['Sample_ID']] \n",
+                "2) the `maehrlab_metadata` argument defaults to `thymusatlasdatapublic::get_metadata()`.\n",
+                "    If you have access to thymusatlasdataprivate::get_metadata(), try that instead.") )
+  }
+  data_by_sample = maehrlab_metadata[[variable_to_add]]
+  data_by_sample[ data_by_sample %in% NA_strings ] = NA
+  names( data_by_sample ) = maehrlab_metadata[["Sample_ID"]]
+  
+  # # Expand it to go cell by cell instead of sample by sample; add it to the Seurat object
+  new_temp = data_by_sample[ as.character( dge@data.info$orig.ident ) ]
+  names( new_temp ) = rownames( dge@data.info )
+  if( is.null( new_name ) ){ new_name = variable_to_add }
+  dge = Seurat::AddMetaData( dge, metadata = new_temp, col.name = new_name )
+  return( dge )
+}
+
+
+

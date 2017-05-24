@@ -542,7 +542,7 @@ custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("t
 #' Save plots from `custom_feature_plot`.
 #'
 #' @param dge Seurat object
-#' @param results_path
+#' @param results_path Where to save files.
 #' @param colour A gene or type of metadata. Numeric zeroes plotted if `!is.element( colour, AvailableData( dge ) )`.
 #' @param fig_name Figure gets named <fig_name>.pdf or <fig_name>.png or similar. If you put a name ending in ".png" or ".pdf", the extension is stripped off.
 #' @param axes Character vector of length 2. Name of numeric variables available from `FetchData`.
@@ -935,7 +935,7 @@ sparse_axis = function(labels, side, ...){
   }
 }
 
-#' @Save a big PDF file to `<results_path>/<main>.pdf` containing a heatmap of gene expression levels.
+#' Save a big PDF file to `<results_path>/<main>.pdf` containing a heatmap of gene expression levels.
 #' 
 #' @param marker_info a dataframe containing variables `gene` and `cluster`.
 #' @param dge a Seurat object

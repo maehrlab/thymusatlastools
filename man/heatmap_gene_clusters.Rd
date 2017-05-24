@@ -20,7 +20,9 @@ and make a heatmap similar to figure 2 in http://dx.doi.org/10.1101/122531.}
 
 \item{gap_size}{White bars separating clusters are formed by adding fake genes. gap_size is how many fake genes per bar.}
 
-\item{genes_use}{}
+\item{genes_use}{Gene names or anything in `AvailableData(dge)`.}
+
+\item{genes_to_label}{Subset of `genes_use` to write tick labels for.}
 }
 \description{
 Draw heatmaps of gene clusters from output of `smooth_and_cluster_genes`.

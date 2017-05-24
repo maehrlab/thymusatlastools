@@ -28,6 +28,15 @@ The arguments says how many time points to predict and feed in (if length one) o
                                 
 There's one adjustment: this function will never use just one cluster. It will issue a warning and use 2.}
 }
+\value{
+A list with elements:
+
+- dge: the Seurat object
+- gene_stats: genes with effect sizes and cluster labels.
+- smoothers: fitted regression models, one for each gene.
+- cluster_mod: output from stats::kmeans 
+- gap_stats: output from cluster::clusGap
+}
 \description{
 Characterize genes by behavior over pseudotime, returning cluster assignments and effect sizes.
 }

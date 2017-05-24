@@ -12,6 +12,8 @@ tsne_colored(dge, results_path, colour = NULL, fig_name = NULL,
 \arguments{
 \item{dge}{Seurat object}
 
+\item{results_path}{Where to save files.}
+
 \item{colour}{A gene or type of metadata. Numeric zeroes plotted if `!is.element( colour, AvailableData( dge ) )`.}
 
 \item{fig_name}{Figure gets named <fig_name>.pdf or <fig_name>.png or similar. If you put a name ending in ".png" or ".pdf", the extension is stripped off.}
