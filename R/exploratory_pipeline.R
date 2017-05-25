@@ -87,7 +87,7 @@ var_gene_select = function( dge, results_path, test_mode = F,
   # # Save variable genes and parameters
   vgsrp = file.path( results_path, "var_gene_select" )
   dir.create.nice( vgsrp )
-  cell_markers = get_rene_markers() %>% harmonize_species(dge)
+  cell_markers = get_rene_markers()$marker %>% harmonize_species(dge)
   variable_cell_markers = intersect( cell_markers$marker, as.character( dge@var.genes ) )
   variable_cell_markers = c(paste0(length(variable_cell_markers), "total"), variable_cell_markers)
   text2file(file.path(vgsrp, "markers_among_variable_genes.txt"), variable_cell_markers)

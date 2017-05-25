@@ -5,7 +5,7 @@
 \title{Return the ortholog of a given gene or NA (if no match).
 Human and mouse only.}
 \usage{
-get_ortholog(gene, from = "human", to = "mouse")
+get_ortholog(x, ...)
 }
 \description{
 Return the ortholog of a given gene or NA (if no match).

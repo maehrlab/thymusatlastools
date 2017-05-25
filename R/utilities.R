@@ -26,7 +26,7 @@ if( packageVersion("ggplot2") < "2.2.1.9000" ) {
 #' 
 #'@export
 get_rene_markers = function(){
-  data("handpicked_markers")
+  data(handpicked_markers)
   return( handpicked_markers )
 }
 
@@ -359,11 +359,9 @@ mouse_dupes = duplicated( ortholog_table$mousesym )
 h2m = setNames( ortholog_table$mousesym, nm = ortholog_table$humansym )[!human_dupes]
 m2h = setNames( ortholog_table$humansym, nm = ortholog_table$mousesym )[!mouse_dupes]
 
-#' Return the ortholog of a given gene or NA (if no match).
-#' Human and mouse only.
+#' Return the ortholog of a given gene or NA (if no match). Not vectorized. Use get_ortholog instead.
 #'
-#' @export
-get_ortholog = function( gene, from = "human", to = "mouse" ){
+get_ortholog_nonvec = function( gene, from = "human", to = "mouse" ){
   if       ( from == "human" && to == "mouse"){
     return( h2m[ gene ] )
   } else if( from == "mouse" && to == "human"){
@@ -374,10 +372,19 @@ get_ortholog = function( gene, from = "human", to = "mouse" ){
   }
 }
 
+#' Return the ortholog of a given gene or NA (if no match).
+#' Human and mouse only.
+#'
+#' @export
+get_ortholog = function(x, ...) {
+  atat( all( lapply( x, class ) == "character" ) )
+  sapply(x, get_ortholog_nonvec, ...)
+}
+
 #' Same as get_ortholog but returns just T or F.
 #'
 #' @export
-has_ortholog = function( ... ){ !is.na( get_ortholog( ... ) ) }
+has_ortholog = function( ... ){ !is.na( get_ortholog( ..., try_caps = FALSE ) ) }
 
 
 #' Convert a raw digital gene expression matrix from one species to another.
@@ -404,6 +411,7 @@ convert_species_dge = function( raw_dge, from = "human", to = "mouse"){
 #'
 #' @export
 harmonize_species = function( gene_list, dge ){
+  atat(class(gene_list) == "character")
   if( !"species" %in% AvailableData( dge ) ){
     warning( paste( "Please add a `species` field to the metadata containing 'human', 'mouse', or some of each.\n",
                     "Attempting to add species for you via `add_maehrlab_metadata( dge, 'species' )`.") )
