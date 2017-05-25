@@ -396,7 +396,7 @@ get_ortholog_nonvec = function( gene, from = "human", to = "mouse" ){
 #'
 #' @export
 get_ortholog = function(x, ...) {
-  atat( all( lapply( x, class ) == "character" ) )
+  x %<>% as.character
   sapply(x, get_ortholog_nonvec, ...)
 }
 
@@ -430,7 +430,7 @@ convert_species_dge = function( raw_dge, from = "human", to = "mouse"){
 #'
 #' @export
 harmonize_species = function( gene_list, dge ){
-  atat(class(gene_list) == "character")
+  gene_list %<>% as.character
   if( !"species" %in% AvailableData( dge ) ){
     warning( paste( "Please add a `species` field to the metadata containing 'human', 'mouse', or some of each.\n",
                     "Attempting to add species for you via `add_maehrlab_metadata( dge, 'species' )`.") )
