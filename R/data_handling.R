@@ -3,16 +3,17 @@
 #' Export raw and normalized data from a Seurat object.
 #'
 #' @export
-export_from_seurat = function( dge, results_path, name ){
-  desired_metadata = dge@data.info[, c( "nGene", "nUMI", "orig.ident", "eday", "IG1.S", "S", "G2.M", "M", "M.G1" )]
+export_from_seurat = function( dge, results_path, name, 
+                               metadata_included = c( "nGene", "nUMI", "orig.ident", "eday", "IG1.S", "S", "G2.M", "M", "M.G1" ) ){
+  desired_metadata = dge@data.info[, metadata_included ]
   raw_dge = deseuratify_raw_data( dge )
   desired_total = normalize_cpx_amt( raw_dge, results_path, do.plot = F )
   normalized_dge = apply(raw_dge, 2, div_by_sum)*desired_total
-  write.table( raw_dge,        file.path( results_path, "_counts_raw.data" ), 
+  write.table( raw_dge,          file.path( results_path, paste0( name, "_counts_raw.data" ) ), 
                row.names = T, col.names = T, quote = F, sep = "\t" )
-  write.table( normalized_dge, file.path( results_path, "_counts_scaled.data" ), 
+  write.table( normalized_dge,   file.path( results_path, paste0( name, "_counts_scaled.data" ) ), 
                row.names = T, col.names = T, quote = F, sep = "\t" )
-  write.table( desired_metadata, file.path( results_path, "_metadata.data" ), 
+  write.table( desired_metadata, file.path( results_path, paste0( name, "_metadata.data" ) ), 
                row.names = T, col.names = T, quote = F, sep = "\t" )
 }
 

@@ -15,7 +15,6 @@ PATH_TO_TABLES = file.path( "tables" )
 #' @import hexbin 
 #' @import cluster 
 #' @import mgcv 
-#' @import destiny 
 #' @import magrittr
 
 assertthat::assert_that( packageVersion("destiny") >= "2")

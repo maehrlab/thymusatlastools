@@ -4,7 +4,8 @@
 \alias{export_from_seurat}
 \title{Export raw and normalized data from a Seurat object.}
 \usage{
-export_from_seurat(dge, results_path, name)
+export_from_seurat(dge, results_path, name, metadata_included = c("nGene",
+  "nUMI", "orig.ident", "eday", "IG1.S", "S", "G2.M", "M", "M.G1"))
 }
 \description{
 Export raw and normalized data from a Seurat object.
