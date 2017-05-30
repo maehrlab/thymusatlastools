@@ -88,7 +88,7 @@ var_gene_select = function( dge, results_path, test_mode = F,
   vgsrp = file.path( results_path, "var_gene_select" )
   dir.create.nice( vgsrp )
   cell_markers = get_rene_markers()$marker %>% harmonize_species(dge)
-  variable_cell_markers = intersect( cell_markers$marker, as.character( dge@var.genes ) )
+  variable_cell_markers = intersect( cell_markers, as.character( dge@var.genes ) )
   variable_cell_markers = c(paste0(length(variable_cell_markers), "total"), variable_cell_markers)
   text2file(file.path(vgsrp, "markers_among_variable_genes.txt"), variable_cell_markers)
   totalstring = paste(length(as.character(dge@var.genes)), "total")
@@ -134,6 +134,7 @@ add_cc_score = function(dge, method = "average"){
   # # - intersect gene list with available genes
   geneset = as.list(phases); names(geneset) = phases
   for( phase in phases ){
+    human_ortho = c()
     if ( !"species" %in% AvailableData( dge ) ){
       warning(paste("No species metadata present. Assuming mouse, but please add species metadata.", 
                     "Try `object = add_maerhlab_metadata(object, 'species')` with `add_maerhlab_metadata`",
@@ -142,9 +143,7 @@ add_cc_score = function(dge, method = "average"){
       human_ortho = unlist( lapply( X = macosko_cell_cycle_genes[, phase], 
                                     FUN = get_ortholog, from = "human", to = "mouse" ) )
       human_ortho = human_ortho[!is.na( human_ortho )]
-    } else {
-      human_ortho = c()
-    }
+    } 
     geneset[[phase]] = union( Capitalize( macosko_cell_cycle_genes[, phase] ), 
                      toupper(    macosko_cell_cycle_genes[, phase] ) )
     geneset[[phase]]  = union( geneset[[phase]], human_ortho )

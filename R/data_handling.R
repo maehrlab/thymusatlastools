@@ -2,6 +2,7 @@
 
 #' Export raw and normalized data from a Seurat object.
 #'
+#' @export
 export_from_seurat = function( dge, results_path, name ){
   desired_metadata = dge@data.info[, c( "nGene", "nUMI", "orig.ident", "eday", "IG1.S", "S", "G2.M", "M", "M.G1" )]
   raw_dge = deseuratify_raw_data( dge )
