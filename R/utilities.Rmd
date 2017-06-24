@@ -227,10 +227,10 @@ atat( all.equal(  top_n_preserve_rownames(x = data.frame(rownames_tempcol = 10:6
 #' Aggregate data.frame by a categorical variable, permissively.
 #'
 #' @details A wrapper for aggregate(). Accepts atomic "by" argument.
-#' Guaranteed to return a dense dataframe. Also returns the aggregation levels in the rownames 
+#' Guaranteed to return a matrix. Also returns the aggregation levels in the rownames 
 #' instead of adding a column for them.
 #' @export
-aggregate.nice = function(x, by, FUN, ... ) {
+aggregate_nice = function(x, by, FUN, ... ) {
   if( typeof( by ) != "list" ){
     by = list ( by )
   } 
@@ -243,17 +243,12 @@ aggregate.nice = function(x, by, FUN, ... ) {
   result = result[ , -1, drop = F]
   return( as.matrix( result ) )
 }
-test1 = data.frame(1:6, 2, 3)
-atae( aggregate.nice( test1, letters[1:6], mean ), test1 )
-atat( all( aggregate.nice( test1, rep("A", 6), sum ) == matrix( c(21, 12, 18), nrow = 1) ) )
+
 
 #' Convert a, b, b, a, c, a to 1, 2, 2, 1, 3, 1. Works with any strings alphabetically.
 #' 
 #' @export
 replace_with_int_rank = function(x) as.numeric( as.factor( x ) )
-atat(all(replace_with_int_rank(1:5) == 1:5))
-atat(all(replace_with_int_rank(c("a", "b", "a", "c", "c")) == c(1, 2, 1, 3, 3)))
-atat(all(replace_with_int_rank(c("0", "2", "0", "4", "4")) == c(1, 2, 1, 3, 3)))
 
 #' @export
 na2zero = function(df){
@@ -263,8 +258,6 @@ na2zero = function(df){
 
 #' @export
 Capitalize = function(s) {paste0(toupper( substring( s, 1, 1 ) ), tolower( substring( s, 2 ) ) )}
-#' @export
-assertthat::are_equal(Capitalize(c("FOXN1", "PSMB11")), c("Foxn1", "Psmb11") )
 
 #' Turn a named list or vector of strings into a 
 #' pipe-separated key-value format: "<name1>=<value1>|<name2>=<value2>|..."
@@ -290,8 +283,6 @@ strip_suffix = function(s, suffix){
   if( substring(s, nc + 1 - ncs, nc ) == suffix ){ s = substring(s, 1, nc - ncs ) }
   return(s)
 }
-atae( strip_suffix("blah.pdf", ".pdf"), "blah")
-atae( strip_suffix("blah",     ".pdf"), "blah")
 
 #' Write text to a file
 #'
@@ -308,6 +299,17 @@ text2file = function(filename, vector_of_lines){
 #' @export
 dir.create.nice = function(my_dir){
   if( !dir.exists( my_dir ) ){ dir.create( my_dir, recursive = T) }
+}
+
+#' Wrap base::strsplit with a 'drop' option
+#'
+#' @export
+strsplit_drop = function(..., drop = TRUE){
+  x = strsplit(...)
+  if(drop){
+    x = x[[1]]
+  }
+  return( x )
 }
 
 #' Split out folder names and return them in reverse order with "" at the end.
@@ -340,8 +342,8 @@ get_preimage = function( map, detailed_output = F ){
   preimage = setNames( as.list( rep(NA, length( range_of_map ) ) ), nm = range_of_map )
   
   # # Save CPU time by setting the easy ones wholesale
-  output_occurs_multiple = map[ map %in% map[ duplicated( map ) ] ]
-  output_occurs_once = map[ !( map %in% output_occurs_multiple ) ]
+  output_occurs_multiple = map[ map %in% map[ duplicated( map ) ] ] # mappity map map map
+  output_occurs_once     = map[ !( map %in% output_occurs_multiple ) ] # map map
   preimage[ output_occurs_once ] = names( output_occurs_once )
   
   # # Fill in fibers
@@ -358,12 +360,7 @@ get_preimage = function( map, detailed_output = F ){
                 output_occurs_multiple = output_occurs_multiple, 
                 output_occurs_once = output_occurs_once ) )
 }
-atae( get_preimage( map = setNames( LETTERS, letters) ), as.list( setNames( letters, LETTERS) )  )
-atae( get_preimage( map = setNames(      c("A", "B", "DUPE", "DUPE"), 
-                                         nm = c("a", "b", "c",    "d") ) ), 
-      list(A = "a", 
-           B = "b",
-           DUPE = c( "c", "d" ) ) ) 
+
 ```
 
 
@@ -456,7 +453,7 @@ harmonize_species = function( gene_list, dge ){
 #' @export
 remove_species_specific_genes = function( dge, results_path, threshold = 0.003, diff_thresh = 0.5 ){
   
-  proportions_by_species = aggregate.nice( x   = as.matrix( t( dge@data > 0 ) ), 
+  proportions_by_species = aggregate_nice( x   = as.matrix( t( dge@data > 0 ) ), 
                                            by  = dge@data.info$species , 
                                            FUN = mean )
   min_proportions_by_species = sapply( X = proportions_by_species, FUN = min)

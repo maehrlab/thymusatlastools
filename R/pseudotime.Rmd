@@ -31,6 +31,9 @@ master_pt = function( dge, results_path, method = "monocle", earliest_day = NULL
   if( method=="PCA" ){
     dge = pc_as_pt( dge )$dge
   } else if (method=="DPT") {
+    if( !requireNamespace("destiny", quietly = TRUE) ){
+      stop("Option DPT requires the package 'destiny' version >=2.5.0.")
+    }
     dm = destiny::DiffusionMap( data = t( as.matrix( dge@data ) ) )
     dpt_out = destiny::DPT( dm )
     dge = add_pseudotime_to_seurat( dge, pt_obj = dpt_out, pt_method = "dpt" )
@@ -147,7 +150,7 @@ smooth_and_cluster_genes = function( dge, results_path,
                           labels = as.character( 1:num_periods_initial_screen ),
                           include.lowest = T, ordered_result = T)
   dge = Seurat::AddMetaData( dge, cell_data[, "period"] %>% matrixify_preserving_rownames, "period" )
-  genes_by_period = t( aggregate.nice( t(dge@data), by = cell_data$period, FUN = mean ) )
+  genes_by_period = t( aggregate_nice( t(dge@data), by = cell_data$period, FUN = mean ) )
   nonzero = apply( genes_by_period, 1, function(x) any(x>0) )
   genes_by_period = genes_by_period[nonzero, ]
   min2max = function(x) (max(x) - min(x))
@@ -262,7 +265,7 @@ facet_plot_gene_clusters = function( dge, results_path,
                                      facet_ncol = NULL ){
   cluster_mod$cluster = factor( cluster_mod$cluster )
   num_clusters = length(levels(cluster_mod$cluster))
-  centers = aggregate.nice( kmeans_features, by = cluster_mod$cluster, FUN = mean )
+  centers = aggregate_nice( kmeans_features, by = cluster_mod$cluster, FUN = mean )
   data_wide = data.frame( rbind( centers, kmeans_features ) )
   data_wide$is_center = F; data_wide$is_center[1:num_clusters] = T
   data_wide$cluster = c( levels(cluster_mod$cluster), as.character( cluster_mod$cluster ) )
@@ -352,7 +355,7 @@ heatmap_gene_clusters = function( dge, results_path,
   
   # # Add vertical bar for branching heatmap
   if( "simple_branch" %in% AvailableData( dge ) ){
-    pt_by_branch = aggregate.nice( x =  FetchData(dge, "pseudotime"), 
+    pt_by_branch = aggregate_nice( x =  FetchData(dge, "pseudotime"), 
                                    by = FetchData(dge, "simple_branch"), 
                                    FUN = mean )
     atae( pt_by_branch["progenitor", ], 0, tol = 1e-8 )
@@ -588,8 +591,8 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   eday  = phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric
   state = phenoData(mobj)[["State"]] %>% as.character %>% as.numeric
   coords = t( mobj@reducedDimS )
-  eday_by_state     = aggregate.nice( x = eday,   by = state, FUN = pct_eq_10_5 )
-  centroid_by_state = aggregate.nice( x = coords, by = state, FUN = mean )
+  eday_by_state     = aggregate_nice( x = eday,   by = state, FUN = pct_eq_10_5 )
+  centroid_by_state = aggregate_nice( x = coords, by = state, FUN = mean )
   root_state = which.max( eday_by_state ) 
   dist_sq_to_root = apply( centroid_by_state, 1, FUN = function(x) distance_sq(x, centroid_by_state[root_state,]) )
   names( dist_sq_to_root ) = rownames( centroid_by_state )
@@ -645,6 +648,77 @@ add_pseudotime_to_seurat = function(dge, pt_obj, pt_method = "monocle" ){
   dge = Seurat::AddMetaData(dge, to_add)
 
   return( dge )
+}
+
+
+#' Project cells from one Seurat object onto the pseudotime axis from another Seurat object.
+#'
+#' @param dge_train Seurat object with 'pseudotime' field included.
+#' @param dge_test Seurat object. Cells will be assigned a pseudotime value based on `dge_train`.
+#' @param genes.use Defaults to `dge_train@var.genes`. If you use method="PCA", use the same genes here.
+#' If you aren't sure, use method="KNN".
+#' @param regressout Please put whatever you used for 'latent.vars' in RegressOut when you processed 'dge_train'.
+#' Only matters if you use method="PCA", so if you aren't sure, use method="KNN".
+#' @param new_name Name of column to be added to `dge_test`.
+#' @param method Determines whether to use a PCA-based approach (if "PCA") or an average over nearest neighbors (anything else). Not case sensitive.
+#' @param k Number of nearest neighbors to use.
+ProjectCells = function( dge_train, dge_test, 
+                         genes.use = dge_train@var.genes,
+                         regressout = c( "IG1.S", "S", "G2.M", "M", "M.G1" ),  
+                         new_name = "pseudotime",
+                         method = "KNN", k = 25 ){
+  # Parse input
+  method = toupper( method )
+  if( !is.element( method, c( "KNN", "PCA" ) ) ){
+    warning( "Please put 'PCA' or 'KNN' for `method` arg. Defaulting to KNN. ")
+  }
+
+  # Assemble data
+  train_genes = FetchDataZeroPad( dge_train, genes.use ) %>% as.matrix
+  test_genes  = FetchDataZeroPad( dge_test,  genes.use ) %>% as.matrix
+  train_cc = FetchDataZeroPad( dge_train, regressout ) %>% as.matrix %>% cbind(1)
+  test_cc  = FetchDataZeroPad( dge_test,  regressout ) %>% as.matrix %>% cbind(1)
+  
+  if( method == "PCA" ){
+    
+    # # Regress out cc from testset using trainset params
+    cc_coeffs = solve( t(train_cc) %*% train_cc, ( t(train_cc) %*% train_genes ) )
+    train_genes = train_genes - train_cc %*% cc_coeffs
+    test_genes  = test_genes  - test_cc  %*% cc_coeffs
+    
+    # # Standardize testset genes based on trainset statistics
+    gene_means = apply( train_genes, 2, mean )
+    gene_sds   = apply( train_genes, 2, sd )
+    atae( length(gene_means), length(genes.use))
+    test_genes = test_genes %>% as.matrix %>%
+      sweep( 2, STATS = gene_means, "-") %>%
+      sweep( 2, STATS = gene_sds,   "/")
+
+    # Project testset cells using trainset PC1
+    test_pt  = test_genes  %*% dge_train@pca.x[["PC1"]]
+    
+    # # Verify that we can replicate scale.data and PC1 from dge_train
+    # train_genes = train_genes %>% as.matrix %>%
+    #   sweep( 2, STATS = gene_means, "-") %>%
+    #   sweep( 2, STATS = gene_sds,   "/")    
+    # (t(train_genes) - dge_train@scale.data[genes.use, ])[1:3, 1:3] 
+    # train_pt = train_genes %*% dge_train@pca.x[["PC1"]]
+    # plot( train_pt, FetchData(dge_train, "PC1")[[1]] )
+    # plot( train_pt, FetchData(dge_train, "pseudotime")[[1]] )
+    
+  } else {
+    # # Interpolate pseudotime via average over nearest neighbors.
+    train_pt = FetchDataZeroPad( dge_train, "pseudotime" )[[1]]
+    neighbors = FNN::get.knnx( data = train_genes, query = test_genes, k = k )
+    test_pt = rep(NA, nrow( test_genes ) )
+    names(test_pt) = rownames(test_genes)
+    for(i in seq_along(test_pt)){
+      test_pt[[i]] = mean( train_pt[neighbors$nn.index[[i]]] )
+    }
+  }
+  
+  dge_test %<>% AddMetaData( metadata = test_pt, col.name = new_name )
+  return( dge_test )
 }
 ```
 

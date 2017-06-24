@@ -42,3 +42,15 @@ FetchDataZeroPad = function( dge, vars.all, ... ){
 }
 
 
+#' Subset data flexibly from a Seurat object.
+#'
+#' @param dge Seurat object
+#' @param vars.use Variables to fetch for use in `predicate`.
+#' @param predicate String to be parsed into an R expression and evaluated as an arg to `base::subset`.
+#' @details Calls FetchData, subsets it as a dataframe using base::subset, and 
+#' subsets the Seurat object correspondingly (using the df rownames.)
+SubsetDataFlex = function( dge, vars.use, predicate ){
+  cu = FetchData(dge, vars.use) %>% subset(eval(parse(text=predicate))) %>% rownames
+  return( SubsetData(dge, cells.use = cu) )
+}
+

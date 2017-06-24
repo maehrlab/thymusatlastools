@@ -5,7 +5,7 @@
 \title{Rescale every cell to a certain amount of UMIs, where
 that amount is selected by rounding up the median UMI count up to the next power of 10.}
 \usage{
-normalize_cpx_amt(dge, results_path, do.plot = T)
+normalize_cpx_amt(dge, results_path = NULL)
 }
 \description{
 Rescale every cell to a certain amount of UMIs, where

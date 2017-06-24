@@ -32,7 +32,7 @@ export_from_seurat = function( dge, results_path, name,
 #' that amount is selected by rounding up the median UMI count up to the next power of 10.
 #'
 #'@export
-normalize_cpx_amt = function(dge, results_path, do.plot = T){
+normalize_cpx_amt = function(dge, results_path = NULL ){
 
   umis_by_cell = apply( dge, 2, sum )
   assertthat::are_equal(length(umis_by_cell), length(colnames(dge)))
@@ -40,7 +40,7 @@ normalize_cpx_amt = function(dge, results_path, do.plot = T){
   to.return = 10^magnitude 
   
   # # Plot results
-  if( do.plot ){
+  if( !is.null(results_path) ){
       dir.create.nice( file.path( results_path, "QC" ) )
     pdf( file.path( results_path, "QC", "total_umis_by_cell.pdf"))
     {
@@ -54,7 +54,7 @@ normalize_cpx_amt = function(dge, results_path, do.plot = T){
   return(to.return)
 }
 demo1 = matrix(2000, nrow = 5, ncol = 3)
-assertthat::are_equal(normalize_cpx_amt(demo1, results_path = "~/Desktop/scRNA_junk", do.plot = F), 10000)
+assertthat::are_equal(normalize_cpx_amt(demo1, results_path = NULL), 10000)
 
 
 #' Make arrays into Seurat objects.
@@ -64,32 +64,32 @@ assertthat::are_equal(normalize_cpx_amt(demo1, results_path = "~/Desktop/scRNA_j
 #' summary figures, plotting number of genes by cell, num UMIs by cell, and number of cells by
 #' gene. 
 #'@export
-seuratify_thy_data = function(raw_dge, results_path, test_mode = F, 
-                              min.genes = 1000, min.cells = 3, do.plot = T){
+seuratify_thy_data = function(raw_dge, results_path = NULL, test_mode = F, 
+                              min.genes = 1000, min.cells = 3 ){
   atat(1 < raw_dge %>% dim %>% min %>% min)
 
   total_desired = normalize_cpx_amt( raw_dge, results_path )
   raw_dge_norm = apply( X = raw_dge, MARGIN = 2, FUN = div_by_sum ) * total_desired
   raw_dge_norm = as( raw_dge_norm, "sparseMatrix" )
-  seurat_dge = Seurat::Setup( new( "seurat", raw.data = log2( 1+raw_dge_norm ) ),
-                              min.cells = min.cells * (1 - test_mode), # 0 if test_mode; else 3
-                              min.genes = min.genes * (1 - test_mode), # 0 if test_mode; else min.genes
-                              is.expr=0, 
-                              do.logNormalize = F, 
-                              project = "thymus_scRNAseq", 
-                              names.delim = "\\|",
-                              names.field = 2 )
+  seurat_dge = Setup( new( "seurat", raw.data = log2( 1+raw_dge_norm ) ),
+                      min.cells = min.cells * (1 - test_mode), # 0 if test_mode; else 3
+                      min.genes = min.genes * (1 - test_mode), # 0 if test_mode; else min.genes
+                      is.expr=0, 
+                      do.logNormalize = F, 
+                      project = "thymus_scRNAseq", 
+                      names.delim = "\\|",
+                      names.field = 2 )
   
   # # Make sure the raw data is just UMI counts and update the nUMI field, which will be
   # # filled incorrectly given the above
   seurat_dge@raw.data = raw_dge[ seurat_dge@data %>% rownames, 
                                  seurat_dge@data %>% colnames ]
-  seurat_dge %<>% Seurat::AddMetaData( col.name = "nUMI", 
-                                       metadata = setNames( colSums( seurat_dge@raw.data ),
-                                                            colnames( seurat_dge@raw.data ) ) )
+  seurat_dge %<>% AddMetaData( col.name = "nUMI", 
+                               metadata = setNames( colSums( seurat_dge@raw.data ),
+                                                    colnames( seurat_dge@raw.data ) ) )
   
   # # Plot results
-  if(do.plot){
+  if( !is.null( results_path ) ){
     dir.create.nice( file.path(results_path, "QC" ) )
     genes_by_cell = apply( raw_dge, 2, nnz )
     atat( length( genes_by_cell ) == ncol( raw_dge ) ) # num cells = num cols
@@ -118,6 +118,7 @@ seuratify_thy_data = function(raw_dge, results_path, test_mode = F,
                    length( genes_by_cell ) - ncol( seurat_dge@data ), " cells were excluded from the Seurat object."))
     
   }
+
   return(seurat_dge)
 }
 
@@ -155,6 +156,20 @@ deseuratify_raw_data = function( seurat_dge, retrieve_anew = F ){
   atae(raw_dge, round( raw_dge ) )
   atae(desired_genes, rownames( raw_dge ) )
   return( raw_dge )
+}
+
+#' Merge two Seurat objects.
+#' 
+SeuratMerge = function( dge1, dge2, vars.keep ){
+  dge_all = list( dge1 = deseuratify_raw_data( dge1 ), 
+                  dge2 = deseuratify_raw_data( dge2 ) ) %>%
+    dge_merge_list %>% seuratify_thy_data 
+  if( length(vars.keep) > 0 ){
+    preserved_metadata = rbind( FetchDataZeroPad( dge1, vars.keep ), 
+                                FetchDataZeroPad( dge2, vars.keep ) )
+    dge_all %<>% AddMetaData( preserved_metadata )     
+  }
+  return(dge_all)
 }
 ```
 

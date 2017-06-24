@@ -48,5 +48,43 @@ FetchDataZeroPad = function( dge, vars.all, ... ){
   return( to_return )
 }
 
+
+#' Subset data flexibly from a Seurat object.
+#'
+#' @param dge Seurat object
+#' @param vars.use Variables to fetch for use in `predicate`.
+#' @param predicate String to be parsed into an R expression and evaluated as an arg to `base::subset`.
+#' @details Calls FetchData, subsets it as a dataframe using base::subset, and 
+#' subsets the Seurat object correspondingly (using the df rownames.)
+#' @export
+SubsetDataFlex = function( dge, vars.use, predicate, zeropad = TRUE ){
+  if( typeof(predicate) != "character"){
+    print("predicate should be a character vector. It will be parsed into `subset` as an R expression.")
+  }
+  if(zeropad){
+    df = FetchDataZeroPad(dge, vars.use) 
+  } else {
+    df = FetchData(dge, vars.use) 
+  }
+  cu = df %>% subset(eval(parse(text=predicate))) %>% rownames
+  return( SubsetData(dge, cells.use = cu) )
+}
+
+
+#' Test for markers flexibly from a Seurat object.
+#'
+#' @param object Seurat object.
+#' @param ident.use Variables to fetch for use in `predicate`.
+#' @param ... Passed to Seurat::FindMarkers.
+#' @details Calls Seurat::FindMarkers after replacing object@ident with 
+#' `as.character(FetchData( object, ident.use )[[1]])`.
+#' @export
+FindMarkersFlex = function( object, ident.use, order_by = "avg_diff", ... ){
+  object %<>% Seurat::SetIdent( ident.use = as.character(FetchData( object, ident.use )[[1]]) )
+  x =  Seurat::FindMarkers( object, ... )
+  x = x[order(x[[order_by]], decreasing = T), ]
+  return( x )
+}
+
 ```
 

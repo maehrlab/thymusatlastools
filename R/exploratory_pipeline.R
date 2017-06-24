@@ -489,7 +489,7 @@ custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("t
       nearest_bin = FNN::get.knnx( query = my_df[axes], 
                                    data = hex_data[axes], 
                                    k = 1, algorithm = "cover_tree" )$nn.index %>% c
-      bin_averages = aggregate.nice( my_df[[colour]], by = nearest_bin, FUN = mean )[, 1]
+      bin_averages = aggregate_nice( my_df[[colour]], by = nearest_bin, FUN = mean )[, 1]
       hex_data[names(bin_averages), colour] = bin_averages
       p = p + geom_point( aes_string(x = axes[1], y = axes[2], size = "count", colour = colour ),
                           data = hex_data )
@@ -687,15 +687,15 @@ save_feature_plots = function( dge, results_path,
 }
 
 
-# # Find genes with expression patterns similar to the genes you've specified.
-# #
-# # `dge` : a Seurat object with field `@scale.data` filled in.
-# # `markers`: a character vector; giving gene names.
-# # `n`: integer; number of results to return.
-# # `anticorr` : allow negatively correlated genes; defaults to `FALSE`.
-# # Given a Seurat object and a list of gene names, this function returns genes 
-# # that are strongly correlated with those markers. 
-# # Return value: character vector.
+#' Find genes with expression patterns similar to the genes you've specified.
+#'
+#' @param `dge` : a Seurat object with field `@scale.data` filled in.
+#' @param `markers`: a character vector; giving gene names.
+#' @param `n`: integer; number of results to return.
+#' @param `anticorr` : allow negatively correlated genes; defaults to `FALSE`.
+#' Given a Seurat object and a list of gene names, this function returns genes 
+#' that are strongly correlated with those markers. 
+#' @return character vector.
 #' @export
 get_similar_genes = function( dge, markers, n, anticorr = F ){
   data.use = dge@scale.data
@@ -1013,7 +1013,7 @@ make_heatmap_for_table = function( dge, genes_in_order,
   
   # # Get cluster mean expression for each gene and row normalize
   logscale_expression = Seurat::FetchData(dge, vars.all = genes_in_order)[names( ident ), ]
-  expression_by_cluster = aggregate.nice( x = logscale_expression, by = list( ident ), FUN = aggregator )
+  expression_by_cluster = aggregate_nice( x = logscale_expression, by = list( ident ), FUN = aggregator )
   if( normalize == "row" ){
     expression_by_cluster = apply(X = expression_by_cluster, FUN = norm_fun, MARGIN = 2 ) %>% t
   } else if( normalize == "column" ){
@@ -1224,6 +1224,151 @@ explore_embeddings = function(dge, results_path, all_params, test_mode = F){
     prev_param_row = param_row
   }
   return(dge)
+}
+
+
+## ------------------------------------------------------------------------
+
+#' Quickly compute summary statistics for all genes.
+#'
+#' @param dge Seurat object
+#' @param ident.use Any factor variable available via FetchData(dge). 
+#' @param aggregator Function used to aggregate within clusters. Try `prop_nz`.
+#' @param genes_per_cluster Limit on number of genes returned per cluster.
+#'
+#' @export
+DESummaryFast = function( dge, ident.use = "ident", aggregator = mean, genes_per_cluster = NULL ){
+  cat("Aggregating...\n")
+  cluster_means = aggregate_nice( t(as.matrix(dge@data)), by = Seurat::FetchData(dge, ident.use), FUN = aggregator ) 
+  cat("Done.\n")
+  nwm = function(x)(names(which.max(x)))
+  cluster = apply( cluster_means, 2, nwm ) 
+  max_pairwise_diff = apply( cluster_means, 2, max ) - apply( cluster_means, 2, min )
+  rest_mean = function(x) mean(sort(x, decreasing = T)[-1])
+  avg_diff = apply( cluster_means, 2, max ) - apply( cluster_means, 2, rest_mean )
+  big_list = data.frame( cluster = cluster, 
+                          avg_diff = avg_diff, 
+                          max_pairwise_diff = max_pairwise_diff, 
+                          gene = colnames( cluster_means ) ) 
+  big_list = big_list[order(big_list$cluster, -big_list$avg_diff), ]
+  if( !is.null( genes_per_cluster ) ){
+    small_list = c()
+    for( cluster in unique( big_list$cluster )){
+      this_cluster_info = big_list[big_list$cluster==cluster, ]
+      this_cluster_info = this_cluster_info[1:genes_per_cluster, ]
+      small_list = rbind(small_list, this_cluster_info)
+    }
+    return( small_list )
+  } else {
+    return( big_list )
+  }
+}
+
+
+
+#' Imitate Seurat::FindClusters but using k-means with the gap statistic.
+#'
+#' @param dge Seurat object
+#' @param nclust NULL by default, so chosen via gap statistic.
+#' @param pc.use 
+#'
+#' @export
+KMeansGapStat = function( dge, nclust = NULL, pc.use = 1:25, iter.max = 20 ){
+
+  kmeans_features = Seurat::FetchData( dge, paste0("PC", pc.use) )
+
+  # Set num clusters via gap statistic
+  if( is.null( nclust ) ){
+    gap_stats = cluster::clusGap( x = kmeans_features, FUNcluster = kmeans, K.max = 25, spaceH0 = "scaledPCA", 
+                                  iter.max = iter.max, B = 50 )
+    plot( gap_stats )
+    nclust = max(gap_stats$Tab[, 3]) 
+  } 
+  
+  # Cluster and add output to Seurat object
+  kmod = kmeans( kmeans_features, centers = nclust, iter.max = iter.max )
+  dge %<>% Seurat::AddMetaData( setNames( kmod$cluster, rownames(dge@data.info) ), "kmeans_cluster" )
+  dge %<>% Seurat::SetIdent( ident.use = kmod$cluster )
+  return( dge )
+}
+
+#' Update the `@var.genes` slot of a Seurat object using cluster markers.
+#'
+#' @param dge Seurat object
+#' @param eligible_genes dge@var.genes get intersected with this list before return.
+#' @param log_fc For each gene, we compute the difference between the highest and lowest cluster mean. 
+#' If it exceeds this, the gene is included in the active set.
+#'
+#' @return A Seurat object.
+#'
+#' @export
+RefineVariableGenes = function( dge, log_fc = 1, eligible_genes = NULL ){
+  if(length(unique(dge@ident))==1){
+    warning( "Only one identity class present! Taking top genes from PCA." )
+    dge@var.genes = subset( dge@pca.x[, 1, drop = F], abs(PC1) > 0.05 ) %>% rownames
+  } else {
+    cluster_means = aggregate_nice( t(as.matrix(dge@data)), by = dge@ident, FUN = mean )
+    max_pairwise_diffs = apply( cluster_means, 2, max ) - apply( cluster_means, 2, min )
+    df = data.frame( avg_diff = max_pairwise_diffs, gene = names( max_pairwise_diffs ) )
+    dge@var.genes = subset( df, avg_diff > log_fc, select = "gene", drop = T ) 
+  }
+  if(!is.null(eligible_genes)){
+    dge@var.genes %<>% intersect( eligible_genes )
+  }
+  return( dge )
+}
+
+#' Explore a single-cell dataset, alternating between gene selection and clustering.
+#'
+#' @param dge Seurat object.
+#' @param log_fc Passed to RefineVariableGenes.
+#' @param eligible_genes Restricts the set of genes used. Try setting it to `get_mouse_tfs()`.
+#' @param maxiter Iteration limit. Issues warning if hit.
+#' @param tol If the list changes by less than this many genes (added + removed), it stops.
+#' @param cluster_method A user-provided function to re-estimate clusters, modeled off Seurat::FindClusters. 
+#'      It should take a Seurat object as the first arg.
+#'      It should also accept a `pc.use` input (even if you just discard it).
+#'      For your convenience, the principal components get updated before this function is called.
+#'      The TSNE embedding doesn't, so don't use DBClustDimension alone.
+#' @param ... Extra parameters passed to `cluster_method`
+#' @param num_pc Used in recomputing the number of PCs, and `1:num_pc` is passed to `cluster_method` as `pc.use`.
+#'
+#' @return List with names "dge" (the updated seurat object) and "iteration_stats" (numbers of genes present, added, and removed at each iteration.)
+#' @export
+ExploreIteratively = function( dge, log_fc, 
+                               eligible_genes = NULL,
+                               maxiter = 5, tol = 10, verbose = T,
+                               cluster_method = function(...) Seurat::FindClusters(..., print.output = F),
+                               num_pc = 25, ... ){
+  # Initialize genes
+  if( 0==length( dge@var.genes ) ){
+    dge = MeanVarPlot(dge)
+  }
+  
+  # Store info re: geneset convergence
+  iteration_stats = data.frame( total   = rep(NA, maxiter),
+                                removed = rep(NA, maxiter),
+                                added   = rep(NA, maxiter) )
+  for(i in 1:maxiter){
+    # Update PCs
+    dge = PCAFast( dge, do.print = F, pcs.compute = num_pc )
+    # Cluster
+    dge = cluster_method( dge, pc.use = 1:num_pc, ... )
+    # Reselect genes
+    old_genes = dge@var.genes
+    dge = RefineVariableGenes( dge, log_fc = 1, eligible_genes = eligible_genes )
+    iteration_stats$total[i]   = dge@var.genes %>% length
+    iteration_stats$removed[i] = setdiff( old_genes, dge@var.genes ) %>% length
+    iteration_stats$added[i]   = setdiff( dge@var.genes, old_genes ) %>% length
+    # Exit if list changes by fewer than `tol` genes
+    if( iteration_stats$added[i] + iteration_stats$removed[i] < tol ){
+      break
+    }
+    if(verbose){print(paste("Finished", i, "of", maxiter))}
+    if(i==maxiter){ warning("Iteration limit reached.")}
+  }
+  if(verbose) print( iteration_stats )
+  return( list(dge = dge, iteration_stats = iteration_stats) )
 }
 
 

@@ -4,8 +4,8 @@
 \alias{seuratify_thy_data}
 \title{Make arrays into Seurat objects.}
 \usage{
-seuratify_thy_data(raw_dge, results_path, test_mode = F, min.genes = 1000,
-  min.cells = 3, do.plot = T)
+seuratify_thy_data(raw_dge, results_path = NULL, test_mode = F,
+  min.genes = 1000, min.cells = 3)
 }
 \description{
 Keeps all genes expressed in at least
