@@ -4,7 +4,7 @@
 \alias{SubsetDataFlex}
 \title{Subset data flexibly from a Seurat object.}
 \usage{
-SubsetDataFlex(dge, vars.use, predicate)
+SubsetDataFlex(dge, vars.use, predicate, zeropad = TRUE)
 }
 \arguments{
 \item{dge}{Seurat object}

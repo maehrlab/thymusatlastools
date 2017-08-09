@@ -4,10 +4,14 @@
 \alias{dge_merge_list}
 \title{Merge a list of digital gene expression matrices.}
 \usage{
-dge_merge_list(dge_list)
+dge_merge_list(dge_list, allow_barcode_overlap = F)
 }
 \arguments{
-\item{dge_list}{list of matrices with genes as rows and cell barcodes as columns. Duplicate barcodes across datasets cause errors; I recommend you append the sample ID.}
+\item{dge_list}{list of matrices with genes as rows and cell barcodes as columns.}
+
+\item{allow_barcode_overlap}{Set this to TRUE if matching barcodes in different inputs refer to the same cells, 
+as in a resequencing of a library. Set this to FALSE (default) if matching barcodes would only occur by coincidence, 
+as in merging of different replicates for joint analysis.}
 }
 \description{
 Merge a list of digital gene expression matrices.
