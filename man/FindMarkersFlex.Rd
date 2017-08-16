@@ -4,19 +4,23 @@
 \alias{FindMarkersFlex}
 \title{Test for markers flexibly from a Seurat object.}
 \usage{
-FindMarkersFlex(object, ident.use, order_by = "avg_diff", ...)
+FindMarkersFlex(object, ident.use, ident.1, ident.2 = object \%>\%
+  FetchData(ident.use) \%>\% extract2(1) \%>\% unique \%>\% setdiff(ident.1),
+  order_by_var = "avg_diff", thresh.use = 0.25,
+  test.use = "binomial_batch", genes.use = object@data \%>\% rownames,
+  min.pct = 0.1, ...)
 }
 \arguments{
-\item{object}{Seurat object.}
+\item{ident.use}{Fetched via FetchData to define the groups being tested. Should obey}
 
-\item{ident.use}{Variables to fetch for use in `predicate`.}
+\item{test.use}{Passed into FindMarkers unless it is "binomial_batch", in which case 
+  it uses approximate p-values based on a binomial glmm with a random effect for batch (1|orig.ident). 
 
-\item{...}{Passed to Seurat::FindMarkers.}
+All other parameters are passed into FindMarkers unless test.use=="binomial_batch", in 
+which case I attempt to match the behavior of FindMarkers.
+
+Output contains an extra column for q-values from p.adjust(..., method="fdr").}
 }
 \description{
-Test for markers flexibly from a Seurat object.
-}
-\details{
-Calls Seurat::FindMarkers after replacing object@ident with 
-`as.character(FetchData( object, ident.use )[[1]])`.
+Calls FindMarkers with extra features.
 }

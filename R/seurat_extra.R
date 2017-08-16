@@ -49,7 +49,9 @@ FetchDataZeroPad = function( dge, vars.all, ... ){
 #' @param predicate String to be parsed into an R expression and evaluated as an arg to `base::subset`.
 #' @details Calls FetchData, subsets it as a dataframe using base::subset, and 
 #' subsets the Seurat object correspondingly (using the df rownames.)
+#'
 #' @export
+#'
 SubsetDataFlex = function( dge, vars.use, predicate, zeropad = TRUE ){
   if( typeof(predicate) != "character"){
     print("predicate should be a character vector. It will be parsed into `subset` as an R expression.")
@@ -66,17 +68,75 @@ SubsetDataFlex = function( dge, vars.use, predicate, zeropad = TRUE ){
 
 #' Test for markers flexibly from a Seurat object.
 #'
-#' @param object Seurat object.
-#' @param ident.use Variables to fetch for use in `predicate`.
-#' @param ... Passed to Seurat::FindMarkers.
-#' @details Calls Seurat::FindMarkers after replacing object@ident with 
-#' `as.character(FetchData( object, ident.use )[[1]])`.
+#' Calls FindMarkers with extra features.
+#'
+#' @param ident.use Fetched via FetchData to define the groups being tested. Should obey 
+#' @param test.use Passed into FindMarkers unless it is "binomial_batch", in which case 
+#'   it uses approximate p-values based on a binomial glmm with a random effect for batch (1|orig.ident). 
+#'
+#' All other parameters are passed into FindMarkers unless test.use=="binomial_batch", in 
+#' which case I attempt to match the behavior of FindMarkers.
+#' 
+#' Output contains an extra column for q-values from p.adjust(..., method="fdr").
+#'
 #' @export
-FindMarkersFlex = function( object, ident.use, order_by = "avg_diff", ... ){
+#'
+FindMarkersFlex = function( object,
+                            ident.use, ident.1, 
+                            ident.2 = object %>% FetchData(ident.use) %>% extract2(1) %>% unique %>% setdiff(ident.1),
+                            order_by_var = "avg_diff",
+                            thresh.use = 0.25, 
+                            test.use = "binomial_batch",
+                            genes.use = object@data %>% rownames,
+                            min.pct = 0.1, ... ){
   object %<>% Seurat::SetIdent( ident.use = as.character(FetchData( object, ident.use )[[1]]) )
-  x =  Seurat::FindMarkers( object, ... )
-  x = x[order(x[[order_by]], decreasing = T), ]
+  predicate = paste0( ident.use, " %in% c( '", ident.1, "', '", paste0(ident.2, collapse = "', '"), "' )" )
+  object %<>% SubsetDataFlex( vars.use = ident.use, predicate )
+  if( test.use == "binomial_batch" ){
+    cat(" \n Computing summaries... \n")
+    x = data.frame( gene = genes.use, stringsAsFactors = F )
+    rownames( x ) = x$gene
+    group_means = aggregate.nice( t(object@data[genes.use,]), by = FetchData(object, ident.use), FUN = mean ) %>% t
+    group_pcts  = aggregate.nice( t(object@data[genes.use,]), by = FetchData(object, ident.use), FUN = prop_nz ) %>% t
+    x$avg_diff  = group_means[, ident.1] - group_means[, ident.2]
+    x$pct.1 = group_pcts[, ident.1]
+    x$pct.2 = group_pcts[, ident.2]
+    x = subset(x, abs(avg_diff) > thresh.use & ( pct.1 > min.pct | pct.2 > min.pct ) )
+    cat(" Computing p-values... \n")
+    get_p = function( gene ) {
+      data = FetchData(object, c(gene, ident.use, "orig.ident"))
+      data[[gene]]  %<>% is_greater_than(0)
+      data[[ident.1]] = data[[ident.use]] %in% ident.1
+      colnames(data) = make.names(colnames(data))
+      mod = lme4::glmer(formula = paste0( colnames(data)[1], " ~ (1|orig.ident) + ", colnames(data)[4] ) , 
+                        family = "binomial", data = data )
+      mod_p = car::linearHypothesis( mod, hypothesis.matrix = paste0( make.names(ident.1), "TRUE = 0" ) )
+      cat(".")
+      return( mod_p$`Pr(>Chisq)`[[2]] )
+    }
+    x$p.value = parallel::mclapply( x$gene, 
+                                    function(s) {
+                                      tryCatch(get_p(s), error = function(e) NA) 
+                                    }) %>% simplify2array()
+    failures = is.na(x$p.value)
+    cat("    ", sum( failures ), " failed tests out of ", nrow(x), 
+        ". Setting failures to 1 for conservative FDR control. \n" )
+    x$p.value[failures] = 1
+  } else {
+    x = Seurat::FindMarkers( object, ident.1 = ident.1, ident.2 = ident.2,                              
+                             test.use = test.use,
+                             genes.use = genes.use,   
+                             thresh.use = thresh.use, 
+                             min.pct = min.pct, ... )
+  }
+  x %<>% (plyr::rename)(c("p_val" = "p.value"))
+  if( !is.null( x$p.value ) ){
+    x$q.value = p.adjust( x$p.value, method = "fdr" )
+  }
+  x = x[order(x[[order_by_var]], decreasing = T), ]
+  x$gene = rownames(x)
   return( x )
 }
+
 
 

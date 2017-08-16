@@ -152,15 +152,64 @@ outlier_labeled_scatterplot = function( data, main = "", prop_label = 0.02 ){
   return( p )
 }
 
+
+flip_table = function(X) X[nrow(X):1, ]
+is_rp = function( genes ){
+  genes %<>% toupper
+  p1 = (genes == "RN45S")
+  p2 = substring(genes, 1, 3) %in% c("RPS", "RPL")
+  return(p1|p2)
+}
+
+
+#' Clean and save a df containing columns "gene", "avg_diff", "pct.1", "pct.2", "p.value" and possibly "q.value".
+#'
+#' @export
+#'
+save_marker_table = function(X, results_path, testname, remove_rp = FALSE, add_to_inventory = FALSE ){
+  atae(names(X), c("gene", "avg_diff", "pct.1", "pct.2", "p.value", "q.value" ) )
+  if(remove_rp) X %<>% subset( !is_rp(gene) ) 
+  
+  # Only Phred-scale qvals
+  X$`-log10q` = X$q.value %>% log10 %>% multiply_by(-1)
+  X$p.value = NULL
+  X$q.value = NULL
+  
+  # Round stuff
+  X$avg_diff %<>% round(2)
+  X$pct.1 %<>% round(2)
+  X$pct.2 %<>% round(2)
+  X$`-log10q` %<>% round(2)
+  
+  # Print to files
+  f_up = file.path(results_path, paste0( testname, "_up.txt" ) )
+  f_dn = file.path(results_path, paste0( testname, "_dn.txt" ) )
+  X %>% subset( avg_diff > 0 )  %>% 
+    write.table( f_up, quote = F, col.names = T, row.names = F) 
+  X %>% subset(avg_diff < 0 ) %>%  flip_table %>%
+    write.table( f_dn, quote = F, col.names = T, row.names = F) 
+  
+  # Add to freezr inventory
+  if( add_to_inventory ){
+    freezr::inventory_add( tag = paste0( "de_genes_", testname, "_up" ), 
+                           filename = f_up, 
+                           force = T )
+    freezr::inventory_add( tag = paste0( "de_genes_", testname, "_dn" ), 
+                           filename = f_dn, 
+                           force = T )
+  }
+}
+
+
 distance_sq = function( x, y ) { sum( ( x - y )^2 ) }
 nnz = function(x)(sum(x>0))
 #' @export
 prop_nz = function(x)( nnz(x) / length(x))
 
 #' @export
-div_by_max = function( x ){ return( x / max( x ) ) }
+div_by_max = function( x ){ if( max(x) == 0) 0*x else x / max( x ) } 
 #' @export
-div_by_sum = function( x ){ return( x / sum( x ) ) }
+div_by_sum = function( x ){ if( sum(x) == 0) 0*x else x / sum( x ) } 
 #' @export
 percentify = function( x ){ return( 100*round( div_by_sum( x ), 3 ) ) }
 #' @export
