@@ -1393,7 +1393,7 @@ RefineVariableGenes = function( dge, log_fc = 1, eligible_genes = NULL ){
 #'
 #' @return List with names "dge" (the updated seurat object) and "iteration_stats" (numbers of genes present, added, and removed at each iteration.)
 #' @export
-ExploreIteratively = function( dge, log_fc, 
+ExploreIteratively = function( dge, log_fc = 0.25, 
                                eligible_genes = NULL,
                                maxiter = 5, tol = 10, verbose = T,
                                cluster_method = function(...) Seurat::FindClusters(..., print.output = F),
@@ -1409,12 +1409,16 @@ ExploreIteratively = function( dge, log_fc,
                                 added   = rep(NA, maxiter) )
   for(i in 1:maxiter){
     # Update PCs
-    dge = PCAFast( dge, do.print = F, pcs.compute = num_pc )
+    if( length(dge@var.genes) < 100 ){
+      dge = PCA(dge, do.print = F)
+    } else {
+      dge = PCAFast(dge, do.print = F, pcs.compute = num_pc)
+    }
     # Cluster
     dge = cluster_method( dge, pc.use = 1:num_pc, ... )
     # Reselect genes
     old_genes = dge@var.genes
-    dge = RefineVariableGenes( dge, log_fc = 1, eligible_genes = eligible_genes )
+    dge = RefineVariableGenes( dge, log_fc = log_fc, eligible_genes = eligible_genes )
     iteration_stats$total[i]   = dge@var.genes %>% length
     iteration_stats$removed[i] = setdiff( old_genes, dge@var.genes ) %>% length
     iteration_stats$added[i]   = setdiff( dge@var.genes, old_genes ) %>% length
@@ -1422,10 +1426,17 @@ ExploreIteratively = function( dge, log_fc,
     if( iteration_stats$added[i] + iteration_stats$removed[i] < tol ){
       break
     }
-    if(verbose){print(paste("Finished", i, "of", maxiter))}
+    if(verbose){
+      print(paste("Finished", i, "of", maxiter))
+      print( "Current iteration_stats:" )
+      print( iteration_stats[i, ] )
+    }
     if(i==maxiter){ warning("Iteration limit reached.")}
   }
-  if(verbose) print( iteration_stats )
+  if(verbose){
+    print("Re-computing t-SNE embedding.")
+  } 
+  dge %<>% RunTSNE(dims.use = 1:num_pc, do.fast = T)
   return( list(dge = dge, iteration_stats = iteration_stats) )
 }
 

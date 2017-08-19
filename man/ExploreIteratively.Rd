@@ -4,7 +4,7 @@
 \alias{ExploreIteratively}
 \title{Explore a single-cell dataset, alternating between gene selection and clustering.}
 \usage{
-ExploreIteratively(dge, log_fc, eligible_genes = NULL, maxiter = 5,
+ExploreIteratively(dge, log_fc = 0.25, eligible_genes = NULL, maxiter = 5,
   tol = 10, verbose = T, cluster_method = function(...)
   Seurat::FindClusters(..., print.output = F), num_pc = 25, ...)
 }

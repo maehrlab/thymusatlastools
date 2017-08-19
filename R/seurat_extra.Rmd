@@ -96,6 +96,8 @@ FindMarkersFlex = function( object,
                             test.use = "binomial_batch",
                             genes.use = object@data %>% rownames,
                             min.pct = 0.1, ... ){
+  
+  genes.use %<>% intersect(AvailableData(object))
   object %<>% Seurat::SetIdent( ident.use = as.character(FetchData( object, ident.use )[[1]]) )
   predicate = paste0( ident.use, " %in% c( '", ident.1, "', '", paste0(ident.2, collapse = "', '"), "' )" )
   object %<>% SubsetDataFlex( vars.use = ident.use, predicate )
@@ -103,8 +105,12 @@ FindMarkersFlex = function( object,
     cat(" \n Computing summaries... \n")
     x = data.frame( gene = genes.use, stringsAsFactors = F )
     rownames( x ) = x$gene
-    group_means = aggregate.nice( t(object@data[genes.use,]), by = FetchData(object, ident.use), FUN = mean ) %>% t
-    group_pcts  = aggregate.nice( t(object@data[genes.use,]), by = FetchData(object, ident.use), FUN = prop_nz ) %>% t
+    group_means = aggregate.nice( x  = FetchData(object, genes.use), 
+                                  by = FetchData(object, ident.use), 
+                                  FUN = mean ) %>% t
+    group_pcts  = aggregate.nice( x  = FetchData(object, genes.use), 
+                                  by = FetchData(object, ident.use), 
+                                  FUN = prop_nz ) %>% t
     x$avg_diff  = group_means[, ident.1] - group_means[, ident.2]
     x$pct.1 = group_pcts[, ident.1]
     x$pct.2 = group_pcts[, ident.2]
@@ -148,3 +154,87 @@ FindMarkersFlex = function( object,
 
 ```
 
+#### Synthetic FACS plot
+
+```{r}
+
+#' Make a FACS-like plot from a single-cell dataset.
+#'
+#' @param dge Seurat object
+#' @param gene1 Horizontal axis on plot mimics this gene. Character.
+#' @param gene2 Vertical axis on plot mimics this gene. Character.
+#' @param return_val If "all", returns a list with several internal calculations revealed.
+#' If "plot", returns just a ggplot object. If "seurat", returns a Seurat object with gene scores added. 
+#' @param cutoffs If given, divide plot into four quadrants and annotate with percentages. Numeric vector of length 2.
+#' @param num_genes_add Each axis shows a simple sum of similar genes. This is how many (before removing overlap). Integer.
+#'
+#' @export 
+#'
+TACS = function( dge, gene1, gene2, return_val = "plot", num_genes_add = 100, facet_by = NULL, cutoffs = NULL ){
+  # Get similar genes, removing duplicates
+  g1_similar = get_similar_genes(dge, gene1, num_genes_add) %>% c( gene1, . )
+  g2_similar = get_similar_genes(dge, gene2, num_genes_add) %>% c( gene2, . ) 
+  shared = intersect(g1_similar, g2_similar)
+  g1_similar %<>% setdiff(shared)
+  g2_similar %<>% setdiff(shared)
+  # Average similar genes to get scores
+  g1_score = rowMeans(FetchData(dge, g1_similar))
+  g2_score = rowMeans(FetchData(dge, g2_similar))
+  g1_score_name = paste0(gene1[1], "_score")
+  g2_score_name = paste0(gene2[1], "_score")
+  #Add scores as metadata. Extract with faceting var into plotting data.
+  dge %<>% AddMetaData(g1_score, col.name = g1_score_name)
+  dge %<>% AddMetaData(g2_score, col.name = g2_score_name)
+  plot_df = FetchData(dge, c(g1_score_name, g2_score_name, facet_by))
+  # Form plot
+  p = ggplot(plot_df) + 
+    geom_point( aes_string( x=g1_score_name, y=g2_score_name ) ) 
+  # Facet to taste
+  if(!is.null(facet_by)) {
+    p = p + facet_wrap(as.formula(paste0("~", facet_by)))
+  }
+  # Add quadrants and percentages
+  if( !is.null(cutoffs)){
+    p = p + geom_vline(data = data.frame(xint=cutoffs[1]), aes(xintercept=xint))
+    p = p + geom_hline(data = data.frame(yint=cutoffs[2]), aes(yintercept=yint))
+    percentages = plot_df
+    percentages[[g1_score_name]] %<>% is_greater_than(cutoffs[1])
+    percentages[[g2_score_name]] %<>% is_greater_than(cutoffs[2])
+    percentages %<>% table %>% melt
+    if(!is.null(facet_by)) {
+      percentages = percentages[order(percentages[[facet_by]]), ]
+      for( facet_level in seq_along(unique(plot_df[[facet_by]]))){
+        percentages$value[1:4 + 4*(facet_level-1)] %<>% percentify()
+      }
+    } else {
+      percentages$value %<>% percentify()
+    }
+    
+    # Form annotation DF with correct facet and attempting sensible placement of percentages
+    for( i in seq_along(percentages$value)){
+      annot_df = data.frame(
+        x = ifelse( percentages[i, g1_score_name], cutoffs[1]*2, cutoffs[1]*0.35) ,
+        y = ifelse( percentages[i, g2_score_name], cutoffs[2]*2, cutoffs[2]*0.25) ,
+        label = paste0( round(percentages$value[i], 1), "%") )
+      if(!is.null(facet_by)) {
+        annot_df[[facet_by]] = percentages[i, facet_by]
+      }
+      p = p + geom_text( data = annot_df, aes(x=x,y=y,label=label) )                
+    }
+  }
+  if( return_val == "all" ){
+    return( list( plot = p, 
+                dge = dge, 
+                score_names = c( g1_score_name, g2_score_name ), 
+                plot_data = plot_df,
+                percentages = percentages ) )
+  } else if( return_val == "seurat" ){
+    return(dge)
+  } else if( return_val == "plot" ){
+    return( p )
+  } else {
+    stop(" return_val should be 'all', 'seurat', or 'plot'. ")
+  }
+}
+
+```
