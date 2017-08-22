@@ -159,19 +159,7 @@ deseuratify_raw_data = function( seurat_dge, retrieve_anew = F ){
   return( raw_dge )
 }
 
-#' Merge two Seurat objects.
-#' 
-SeuratMerge = function( dge1, dge2, vars.keep ){
-  dge_all = list( dge1 = deseuratify_raw_data( dge1 ), 
-                  dge2 = deseuratify_raw_data( dge2 ) ) %>%
-    dge_merge_list %>% seuratify_thy_data 
-  if( length(vars.keep) > 0 ){
-    preserved_metadata = rbind( FetchDataZeroPad( dge1, vars.keep ), 
-                                FetchDataZeroPad( dge2, vars.keep ) )
-    dge_all %<>% AddMetaData( preserved_metadata )     
-  }
-  return(dge_all)
-}
+
 ```
 
 

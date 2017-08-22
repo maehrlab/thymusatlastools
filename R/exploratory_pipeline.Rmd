@@ -130,16 +130,46 @@ save_complexity_plot = function(dge, result_path){
 
 ```
 
-###Removing cell-cycle variability and other gene-annotation type tasks
-
-The function `add_cc_score` takes a Seurat object and adds cell cycle scores to the metadata (`object@data.info`). If `method = "average"`, the columns are quantitative scores for each of the five cell-cycle phases. 
-
-- If `method == "average2"`, then only two phases are used (IG1/S and S). They are computed by adding up the expression levels of genes in five different sets; each set characterizes one phase. 
-- If `method == correlation`, then each cell is annotated with its Pearson correlation with five "pseudocells". One of the pseudocells expresses all M genes equally and no others, and the others are the same but for other cell cycle phases. 
-- If `method` is e.g. `pca_2`, then a PCA is computed with the union of the five gene lists as active genes, and the first two PC's are regressed out (similar to SCLVM's Gaussian model with low-rank covariance). 
+###Removing cell-cycle variability 
 
 ```{r}
+
+is_rp = function( genes ){
+  genes %<>% toupper
+  p1 = (genes == "RN45S")
+  p2 = substring(genes, 1, 3) %in% c("RPS", "RPL")
+  return(p1|p2)
+}
+
+#' Quantify ribosomal transcript content cell by cell.
+#'
 #' @export
+#'
+add_rp_percentage = function( dge ){
+  rp_counts = aggregate.nice( dge@raw.data, by = is_rp( rownames( dge@raw.data ) ), FUN = sum ) 
+  rp_counts %<>% t %>% as.data.frame 
+  cells = rownames(rp_counts)
+  rp_counts %<>% apply(1, div_by_sum) %>% t %>% as.data.frame 
+  rp_counts %<>% rename(c("TRUE"="ribo_nUMI_pct", "FALSE"="non_ribo_nUMI_pct"))
+  rownames(rp_counts) = cells
+  dge = AddMetaData( dge, metadata = vectorize_preserving_rownames(rev(rp_counts)), col.name = "ribo_nUMI_pct" )
+  return(dge)
+}
+
+#' Quantify cell-cycle activity by phase.
+#'
+#' The function `add_cc_score` takes a Seurat object and adds cell cycle scores to the metadata (`object@data.info`). If 
+#' `method = "average"`, the columns are quantitative scores for each of the five cell-cycle phases. 
+#' If `method == "average2"`, then only two phases are used (IG1/S and S). They are computed by adding up the 
+#' expression levels of genes in five different sets; each set characterizes one phase. 
+#' If `method == correlation`, then each cell is annotated with its Pearson correlation with five "pseudocells". One of 
+#' the pseudocells expresses all M genes equally and no others, and the others are the same but for other cell cycle 
+#' phases. 
+#' If `method` is e.g. `pca_2`, then a PCA is computed with the union of the five gene lists as active genes, and the 
+#' first two PC's are regressed out (similar to SCLVM's Gaussian model with low-rank covariance). 
+#'
+#' @export
+#'
 add_cc_score = function(dge, method = "average"){
   # Get cell cycle genes and expression data
   # ccDat   = read.table(file.path(PATH_TO_TABLES, "ms_cellcycleGO0007049.txt"),   sep="\t")

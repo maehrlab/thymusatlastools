@@ -154,8 +154,8 @@ knn_classifier = function( dge_train, dge_test, ident.use = "ident",
   }
   
   # # Retrieve data, padding test data with zeroes as needed
-  coords_train_orig = FetchDataZeroPad( dge_train, vars.all )
-  coords_test_orig  = FetchDataZeroPad( dge_test,  vars.all )
+  coords_train_orig = FetchDataZeroPad( dge_train, vars.all, warn = F )
+  coords_test_orig  = FetchDataZeroPad( dge_test,  vars.all, warn = F )
   
   # # set the transform (and badness) 
   if( is.null( my_transform ) ){ my_transform = function(x) x }

@@ -4,7 +4,7 @@
 \alias{FetchDataZeroPad}
 \title{FetchData but with zeroes for unavailable genes}
 \usage{
-FetchDataZeroPad(dge, vars.all, ...)
+FetchDataZeroPad(dge, vars.all, warn = T, ...)
 }
 \arguments{
 \item{dge}{Seurat object}

@@ -31,10 +31,13 @@ AvailableData = function( object ){
 #'
 #' @details This function is stupid: if you ask for "PC1" and it's not available,
 #' it will think you're asking for a non-expressed gene, so it will return zeroes.
-FetchDataZeroPad = function( dge, vars.all, ... ){
+FetchDataZeroPad = function( dge, vars.all, warn = T, ... ){
   vars.all = vars.all[complete.cases(vars.all)]
   avail = intersect( vars.all, AvailableData( dge ) )
   unavail = setdiff( vars.all, AvailableData( dge ) )
+  if(warn && length(unavail) > 0){
+    warning("Some variables are not available. Returning zeroes.\n")
+  }
   to_return  = FetchData( dge,  avail, ... ) 
   pad = as.data.frame( matrix(0,           
                               nrow = nrow( to_return ), 
@@ -72,6 +75,30 @@ SubsetDataFlex = function( dge, vars.use, predicate, zeropad = TRUE ){
   return( SubsetData(dge, cells.use = cu) )
 }
 
+#' Merge two Seurat objects.
+#'
+#' By default, preserves any column of @data.info shared between both objects.  
+#' You can also specify what variables to keep. They will be added to data.info in 
+#' the output, warning and padding with zeroes if either object lacks any var in vars.keep.
+#'  
+#' @export
+#' 
+SeuratMerge = function( dge1, dge2, vars.keep = intersect(names(dge1@data.info), 
+                                                          names(dge2@data.info) ) ){
+  dge_all = list( dge1 = deseuratify_raw_data( dge1 ), 
+                  dge2 = deseuratify_raw_data( dge2 ) ) %>%
+    dge_merge_list %>% seuratify_thy_data 
+  characterize_factor = function(x){ if(is.factor(x)) as.character(x) else x }
+  all_factors_to_char = function(X) data.frame(lapply(X, characterize_factor), stringsAsFactors=FALSE)
+  if( length(vars.keep) > 0 ){
+    preserved_metadata = rbind( FetchDataZeroPad( dge1, vars.keep ) %>% all_factors_to_char, 
+                                FetchDataZeroPad( dge2, vars.keep ) %>% all_factors_to_char )
+    preserved_metadata %<>% as.data.frame
+    rownames(preserved_metadata) = c( rownames(dge1@data.info),rownames(dge2@data.info)) 
+    dge_all %<>% AddMetaData( preserved_metadata )     
+  }
+  return(dge_all)
+}
 
 #' Test for markers flexibly from a Seurat object.
 #'
@@ -152,17 +179,31 @@ FindMarkersFlex = function( object,
 }
 
 
+#' Sanitize gene names via `make.names`
+#'
+#' @export 
+#'
+SanitizeGenes = function( dge ){
+  rownames( dge@raw.data )   %<>% make.names
+  rownames( dge@data )       %<>% make.names
+  rownames( dge@scale.data ) %<>% make.names
+  names(    dge@var.genes )  %<>% make.names
+  return( dge )
+}
+
 ```
 
-#### Synthetic FACS plot
+#### Transcript averaged cell scoring (TACS) plot
 
 ```{r}
 
-#' Make a FACS-like plot from a single-cell dataset.
+#' Make a FACS-like plot from a single-cell rna-seq dataset.
 #'
 #' @param dge Seurat object
-#' @param gene1 Horizontal axis on plot mimics this gene. Character.
-#' @param gene2 Vertical axis on plot mimics this gene. Character.
+#' @param gene1 Horizontal axis on plot mimics this gene. Character, usually length 1 but possibly longer.
+#' @param gene2 Vertical axis on plot mimics this gene. Character, usually length 1 but possibly longer. 
+#' @param genesets_predetermined If FALSE, plot the sum of many genes similar to gene1 instead of gene1 alone (same 
+#' for gene2). See ?get_similar_genes. If TRUE, plot the sum of only the genes given.
 #' @param return_val If "all", returns a list with several internal calculations revealed.
 #' If "plot", returns just a ggplot object. If "seurat", returns a Seurat object with gene scores added. 
 #' @param cutoffs If given, divide plot into four quadrants and annotate with percentages. Numeric vector of length 2.
@@ -170,37 +211,51 @@ FindMarkersFlex = function( object,
 #'
 #' @export 
 #'
-TACS = function( dge, gene1, gene2, return_val = "plot", num_genes_add = 100, facet_by = NULL, cutoffs = NULL ){
-  # Get similar genes, removing duplicates
-  g1_similar = get_similar_genes(dge, gene1, num_genes_add) %>% c( gene1, . )
-  g2_similar = get_similar_genes(dge, gene2, num_genes_add) %>% c( gene2, . ) 
-  shared = intersect(g1_similar, g2_similar)
-  g1_similar %<>% setdiff(shared)
-  g2_similar %<>% setdiff(shared)
-  # Average similar genes to get scores
+TACS = function( dge, gene1, gene2, genesets_predetermined = F, 
+                 return_val = "plot", 
+                 num_genes_add = 100, facet_by = NULL, cutoffs = NULL ){
+  
+  # Get gene sets to average
+  if(genesets_predetermined){
+    g1_similar = gene1
+    g2_similar = gene2
+  } else {
+    g1_similar = get_similar_genes(dge, gene1, num_genes_add) %>% c( gene1, . )
+    g2_similar = get_similar_genes(dge, gene2, num_genes_add) %>% c( gene2, . ) 
+    shared = intersect(g1_similar, g2_similar)
+    g1_similar %<>% setdiff(shared)
+    g2_similar %<>% setdiff(shared)
+  }
+  
+  # Average gene sets to get scores
   g1_score = rowMeans(FetchData(dge, g1_similar))
   g2_score = rowMeans(FetchData(dge, g2_similar))
   g1_score_name = paste0(gene1[1], "_score")
   g2_score_name = paste0(gene2[1], "_score")
+  
   #Add scores as metadata. Extract with faceting var into plotting data.
   dge %<>% AddMetaData(g1_score, col.name = g1_score_name)
   dge %<>% AddMetaData(g2_score, col.name = g2_score_name)
   plot_df = FetchData(dge, c(g1_score_name, g2_score_name, facet_by))
+  
   # Form plot
   p = ggplot(plot_df) + 
     geom_point( aes_string( x=g1_score_name, y=g2_score_name ) ) 
+  p = p + expand_limits(y=0, x=0)
   # Facet to taste
   if(!is.null(facet_by)) {
     p = p + facet_wrap(as.formula(paste0("~", facet_by)))
   }
+  
   # Add quadrants and percentages
   if( !is.null(cutoffs)){
     p = p + geom_vline(data = data.frame(xint=cutoffs[1]), aes(xintercept=xint))
     p = p + geom_hline(data = data.frame(yint=cutoffs[2]), aes(yintercept=yint))
+    plot_df[[facet_by]] %<>% droplevels
     percentages = plot_df
     percentages[[g1_score_name]] %<>% is_greater_than(cutoffs[1])
     percentages[[g2_score_name]] %<>% is_greater_than(cutoffs[2])
-    percentages %<>% table %>% melt
+    percentages %<>% table %>% melt 
     if(!is.null(facet_by)) {
       percentages = percentages[order(percentages[[facet_by]]), ]
       for( facet_level in seq_along(unique(plot_df[[facet_by]]))){
@@ -221,11 +276,14 @@ TACS = function( dge, gene1, gene2, return_val = "plot", num_genes_add = 100, fa
       }
       p = p + geom_text( data = annot_df, aes(x=x,y=y,label=label) )                
     }
+  } else {
+    percentages = NULL
   }
   if( return_val == "all" ){
     return( list( plot = p, 
                 dge = dge, 
                 score_names = c( g1_score_name, g2_score_name ), 
+                genesets = list( g1_similar, g2_similar ),
                 plot_data = plot_df,
                 percentages = percentages ) )
   } else if( return_val == "seurat" ){

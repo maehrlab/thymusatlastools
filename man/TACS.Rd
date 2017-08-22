@@ -2,17 +2,20 @@
 % Please edit documentation in R/seurat_extra.R
 \name{TACS}
 \alias{TACS}
-\title{Make a FACS-like plot from a single-cell dataset.}
+\title{Make a FACS-like plot from a single-cell rna-seq dataset.}
 \usage{
-TACS(dge, gene1, gene2, return_val = "plot", num_genes_add = 100,
-  facet_by = NULL, cutoffs = NULL)
+TACS(dge, gene1, gene2, genesets_predetermined = F, return_val = "plot",
+  num_genes_add = 100, facet_by = NULL, cutoffs = NULL)
 }
 \arguments{
 \item{dge}{Seurat object}
 
-\item{gene1}{Horizontal axis on plot mimics this gene. Character.}
+\item{gene1}{Horizontal axis on plot mimics this gene. Character, usually length 1 but possibly longer.}
 
-\item{gene2}{Vertical axis on plot mimics this gene. Character.}
+\item{gene2}{Vertical axis on plot mimics this gene. Character, usually length 1 but possibly longer.}
+
+\item{genesets_predetermined}{If FALSE, plot the sum of many genes similar to gene1 instead of gene1 alone (same 
+for gene2). See ?get_similar_genes. If TRUE, plot the sum of only the genes given.}
 
 \item{return_val}{If "all", returns a list with several internal calculations revealed.
 If "plot", returns just a ggplot object. If "seurat", returns a Seurat object with gene scores added.}
@@ -22,5 +25,5 @@ If "plot", returns just a ggplot object. If "seurat", returns a Seurat object wi
 \item{cutoffs}{If given, divide plot into four quadrants and annotate with percentages. Numeric vector of length 2.}
 }
 \description{
-Make a FACS-like plot from a single-cell dataset.
+Make a FACS-like plot from a single-cell rna-seq dataset.
 }

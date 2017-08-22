@@ -154,12 +154,6 @@ outlier_labeled_scatterplot = function( data, main = "", prop_label = 0.02 ){
 
 
 flip_table = function(X) X[nrow(X):1, ]
-is_rp = function( genes ){
-  genes %<>% toupper
-  p1 = (genes == "RN45S")
-  p2 = substring(genes, 1, 3) %in% c("RPS", "RPL")
-  return(p1|p2)
-}
 
 
 #' Clean and save a df containing columns "gene", "avg_diff", "pct.1", "pct.2", "p.value" and possibly "q.value".

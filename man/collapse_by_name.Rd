@@ -2,12 +2,12 @@
 % Please edit documentation in R/utilities.R
 \name{collapse_by_name}
 \alias{collapse_by_name}
-\title{Turn a named list or vector of strings into a 
+\title{Turn a named list or vector of strings into a
 pipe-separated key-value format: "<name1>=<value1>|<name2>=<value2>|..."}
 \usage{
 collapse_by_name(named_list)
 }
 \description{
-Turn a named list or vector of strings into a 
+Turn a named list or vector of strings into a
 pipe-separated key-value format: "<name1>=<value1>|<name2>=<value2>|..."
 }
