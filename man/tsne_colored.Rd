@@ -6,8 +6,7 @@
 \usage{
 tsne_colored(dge, results_path, colour = NULL, fig_name = NULL,
   axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", alpha = 1,
-  height = 7, width = 8, types = c("PDF", "PDF_no_leg", "PNG_PDF_split"),
-  ...)
+  height = 7, width = 8, types = c("PDF", "PDF_no_leg"), ...)
 }
 \arguments{
 \item{dge}{Seurat object}

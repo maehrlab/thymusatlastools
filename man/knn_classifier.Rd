@@ -18,11 +18,12 @@ knn_classifier(dge_train, dge_test, ident.use = "ident", vars.all = NULL,
 through `FetchData`; in this case, should be numeric. For others, zeroes are filled in.
 If NULL, uses variable genes from both `dge_train` and `dge_test`.}
 
-\item{my_transform}{If `is.null(my_transform)` (default), then `my_transform` is the identity. 
+\item{my_transform}{NULL, character, or function. 
+If `is.null(my_transform)` (default), then `my_transform` is the identity. 
 if `my_transform` has the form "PCA_<integer>", then the `my_transform` is an unscaled <integer>-dimensional
 PCA based on the training data. This option triggers special behavior for quantifying 
 classifier badness, because NN will perform badly in a principal subspace.
-If user-specified, `my_transform` should accept and return matrices where rows are cells.}
+If a function is given, `my_transform` should accept and return matrices where rows are cells.}
 
 \item{badness}{Either "pc_dist" or "neighbor_dist" or `NULL`. If `NULL`, default depends on 
 `my_transform`. You can't use "pc_dist" unless `my_transform` has the form "PCA_<integer>".}

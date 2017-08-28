@@ -14,6 +14,7 @@ get_similar_genes(dge, markers, n, anticorr = F)
 \item{`n`:}{integer; number of results to return.}
 
 \item{`anticorr`}{: allow negatively correlated genes; defaults to `FALSE`.
+
 Given a Seurat object and a list of gene names, this function returns genes 
 that are strongly correlated with those markers.}
 }

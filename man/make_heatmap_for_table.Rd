@@ -7,11 +7,36 @@ one row for every gene in `genes_in_order`.}
 \usage{
 make_heatmap_for_table(dge, genes_in_order, desired_cluster_order = NULL,
   ident.use = "ident", labels = NULL, aggregator = mean,
-  normalize = "row", norm_fun = div_by_max,
-  main = "Genes aggregated by cluster")
+  normalize = "row", norm_fun = div_by_max, genes_to_label = NULL,
+  main = "Genes aggregated by cluster", return_type = "plot")
+}
+\arguments{
+\item{dge}{Seurat object}
+
+\item{desired_cluster_order}{Levels of FetchData(dge, ident.use)[[1]], ordered how you want them to appear.}
+
+\item{ident.use}{Variable to aggregate by.}
+
+\item{labels}{"regular" (all labels), "stagger" (all labels, alternating left-right to fit more genes), or "none".}
+
+\item{aggregator}{Function to aggregate expression within a group of cells. Try mean or prop_nz.}
+
+\item{normalize}{"row", "column", or "none". Normalization function gets applied across the axis this specifies.}
+
+\item{norm_fun}{Function to use for normalization. Try div_by_max or standardize.}
+
+\item{genes_to_label}{A (small) subset of genes to label. If set, nullifies labels arg.}
+
+\item{main}{Title of plot.}
+
+\item{return_type}{"plot" or "table". If "table", then instead of returning a heatmap, this 
+returns the underlying matrix of normalized, cluster-aggregated values. If anything else, returns a ggplot.
+
+If the cluster's expression values are stored in `x`, then `aggregator(x)` gets (normalized and) plotted.
+Optional parameter `desired_cluster_order` gets coerced to character. It should be a subset of 
+`unique(Seurat::FetchData(dge, ident.use))` (no repeats).}
 }
 \description{
-If the cluster's expression values are stored in `x`, then `aggregator(x)` gets (normalized and) plotted.
-Optional parameter `desired_cluster_order` gets coerced to character. Should be a permutation of 
-`unique(Seurat::FetchData(dge, ident.use))`, though elements may be omitted.
+Make a heatmap with one column for each cluster in `unique( Seurat::FetchData(dge, ident.use)[[1]])` and 
+one row for every gene in `genes_in_order`.
 }

@@ -2,11 +2,11 @@
 % Please edit documentation in R/pseudotime.R
 \name{ProjectCells}
 \alias{ProjectCells}
-\title{Project cells from one Seurat object onto the pseudotime axis from another Seurat object.}
+\title{Project cells from one Seurat object onto the pseudotime axis (or any other continuous variable) from another Seurat object.}
 \usage{
 ProjectCells(dge_train, dge_test, genes.use = dge_train@var.genes,
   regressout = c("IG1.S", "S", "G2.M", "M", "M.G1"),
-  new_name = "pseudotime", method = "KNN", k = 25)
+  to_project = "pseudotime", k = 25, pc.use = 1:25, test_mode = F)
 }
 \arguments{
 \item{dge_train}{Seurat object with 'pseudotime' field included.}
@@ -16,15 +16,15 @@ ProjectCells(dge_train, dge_test, genes.use = dge_train@var.genes,
 \item{genes.use}{Defaults to `dge_train@var.genes`. If you use method="PCA", use the same genes here.
 If you aren't sure, use method="KNN".}
 
-\item{regressout}{Please put whatever you used for 'latent.vars' in RegressOut when you processed 'dge_train'.
-Only matters if you use method="PCA", so if you aren't sure, use method="KNN".}
+\item{regressout}{Please put whatever you used for 'latent.vars' in RegressOut when you processed 'dge_train'.}
 
-\item{new_name}{Name of column to be added to `dge_test`.}
-
-\item{method}{Determines whether to use a PCA-based approach (if "PCA") or an average over nearest neighbors (anything else). Not case sensitive.}
+\item{to_project}{Character vector such that FetchData( dge_train, to_project) contains numeric columns.
+Try "pseudotime" or c("tSNE_1", "tSNE_2").}
 
 \item{k}{Number of nearest neighbors to use.}
+
+\item{pc.use}{which principal components to use for nearest neighbor search.}
 }
 \description{
-Project cells from one Seurat object onto the pseudotime axis from another Seurat object.
+Project cells from one Seurat object onto the pseudotime axis (or any other continuous variable) from another Seurat object.
 }

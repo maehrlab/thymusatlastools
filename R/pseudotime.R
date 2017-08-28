@@ -122,6 +122,7 @@ pc_as_pt = function( dge, pc.use = 1, orient_var = "eday" ){
 #' - cluster genes based on smoothed expression patterns that have been shifted/scaled to the unit interval.
 #'
 #' @export
+#'
 smooth_and_cluster_genes = function( dge, results_path, 
                                      num_periods_initial_screen = 20, 
                                      prop_genes_keep = 0.1,
@@ -640,73 +641,77 @@ add_pseudotime_to_seurat = function(dge, pt_obj, pt_method = "monocle" ){
 }
 
 
-#' Project cells from one Seurat object onto the pseudotime axis from another Seurat object.
+#' Project cells from one Seurat object onto the pseudotime axis (or any other continuous variable) from another Seurat object.
 #'
 #' @param dge_train Seurat object with 'pseudotime' field included.
 #' @param dge_test Seurat object. Cells will be assigned a pseudotime value based on `dge_train`.
 #' @param genes.use Defaults to `dge_train@var.genes`. If you use method="PCA", use the same genes here.
 #' If you aren't sure, use method="KNN".
 #' @param regressout Please put whatever you used for 'latent.vars' in RegressOut when you processed 'dge_train'.
-#' Only matters if you use method="PCA", so if you aren't sure, use method="KNN".
-#' @param new_name Name of column to be added to `dge_test`.
-#' @param method Determines whether to use a PCA-based approach (if "PCA") or an average over nearest neighbors (anything else). Not case sensitive.
+#' @param to_project Character vector such that FetchData( dge_train, to_project) contains numeric columns.
+#' Try "pseudotime" or c("tSNE_1", "tSNE_2").
 #' @param k Number of nearest neighbors to use.
+#' @param pc.use which principal components to use for nearest neighbor search.
+#'
+#' @export
+#'
 ProjectCells = function( dge_train, dge_test, 
                          genes.use = dge_train@var.genes,
                          regressout = c( "IG1.S", "S", "G2.M", "M", "M.G1" ),  
-                         new_name = "pseudotime",
-                         method = "KNN", k = 25 ){
-  # Parse input
-  method = toupper( method )
-  if( !is.element( method, c( "KNN", "PCA" ) ) ){
-    warning( "Please put 'PCA' or 'KNN' for `method` arg. Defaulting to KNN. ")
+                         to_project = "pseudotime",
+                         k = 25,
+                         pc.use = 1:25, 
+                         test_mode = F ){
+  
+  if(any(pc.use > ncol(dge@pca.x))){
+    stop("Not enough principal components available in trainset. Compute moar. \n")
   }
-
+  
   # Assemble data
   train_genes = FetchDataZeroPad( dge_train, genes.use ) %>% as.matrix
   test_genes  = FetchDataZeroPad( dge_test,  genes.use ) %>% as.matrix
   train_cc = FetchDataZeroPad( dge_train, regressout ) %>% as.matrix %>% cbind(1)
   test_cc  = FetchDataZeroPad( dge_test,  regressout ) %>% as.matrix %>% cbind(1)
   
-  if( method == "PCA" ){
-    
-    # # Regress out cc from testset using trainset params
-    cc_coeffs = solve( t(train_cc) %*% train_cc, ( t(train_cc) %*% train_genes ) )
-    train_genes = train_genes - train_cc %*% cc_coeffs
-    test_genes  = test_genes  - test_cc  %*% cc_coeffs
-    
-    # # Standardize testset genes based on trainset statistics
-    gene_means = apply( train_genes, 2, mean )
-    gene_sds   = apply( train_genes, 2, sd )
-    atae( length(gene_means), length(genes.use))
-    test_genes = test_genes %>% as.matrix %>%
-      sweep( 2, STATS = gene_means, "-") %>%
-      sweep( 2, STATS = gene_sds,   "/")
-
-    # Project testset cells using trainset PC1
-    test_pt  = test_genes  %*% dge_train@pca.x[["PC1"]]
-    
-    # # Verify that we can replicate scale.data and PC1 from dge_train
-    # train_genes = train_genes %>% as.matrix %>%
-    #   sweep( 2, STATS = gene_means, "-") %>%
-    #   sweep( 2, STATS = gene_sds,   "/")    
-    # (t(train_genes) - dge_train@scale.data[genes.use, ])[1:3, 1:3] 
-    # train_pt = train_genes %*% dge_train@pca.x[["PC1"]]
-    # plot( train_pt, FetchData(dge_train, "PC1")[[1]] )
-    # plot( train_pt, FetchData(dge_train, "pseudotime")[[1]] )
-    
-  } else {
-    # # Interpolate pseudotime via average over nearest neighbors.
-    train_pt = FetchDataZeroPad( dge_train, "pseudotime" )[[1]]
-    neighbors = FNN::get.knnx( data = train_genes, query = test_genes, k = k )
-    test_pt = rep(NA, nrow( test_genes ) )
-    names(test_pt) = rownames(test_genes)
-    for(i in seq_along(test_pt)){
-      test_pt[[i]] = mean( train_pt[neighbors$nn.index[[i]]] )
-    }
+  # # Regress out cc from testset using trainset params
+  cc_coeffs = solve( t(train_cc) %*% train_cc, ( t(train_cc) %*% train_genes ) )
+  train_genes = train_genes - train_cc %*% cc_coeffs
+  test_genes  = test_genes  - test_cc  %*% cc_coeffs
+  
+  # # Standardize all data based on trainset statistics
+  gene_means = apply( train_genes, 2, mean )
+  gene_sds   = apply( train_genes, 2, sd )
+  atae( length(gene_means), length(genes.use))
+  train_genes = train_genes %>% as.matrix %>%
+    sweep( 2, STATS = gene_means, "-") %>%
+    sweep( 2, STATS = gene_sds,   "/")
+  test_genes = test_genes %>% as.matrix %>%
+    sweep( 2, STATS = gene_means, "-") %>%
+    sweep( 2, STATS = gene_sds,   "/")
+  
+  # # Project into principal subspace of training data
+  projection_mat = as.matrix(dge_train@pca.x[paste0("PC", pc.use)])
+  train_pca_embeddings = train_genes %*% projection_mat
+  test_pca_embeddings  = test_genes  %*% projection_mat
+  
+  # # Check
+  if( test_mode ){
+    plot( FetchData(dge_train, "PC1")[[1]], train_pca_embeddings[, 1], 
+          main = "Existing versus recomputed PC1 projections of cells", 
+          xlab = "existing", ylab = "recomputed")
   }
   
-  dge_test %<>% AddMetaData( metadata = test_pt, col.name = new_name )
+  # # Interpolate via average over nearest neighbors
+  train_response = FetchDataZeroPad( dge_train, to_project )
+  test_response = data.frame(matrix(NA, nrow = nrow(test_genes), ncol = length(to_project)))
+  colnames(test_response) = to_project
+  rownames(test_response) = rownames(test_genes)
+  neighbors = FNN::get.knnx( data = train_pca_embeddings, query = test_pca_embeddings, k = k )
+  for(i in 1:nrow(test_response)){
+    test_response[i, ] = colMeans(train_response[neighbors$nn.index[i, ], ])
+  }
+
+  dge_test %<>% AddMetaData( metadata = test_response )
   return( dge_test )
 }
 

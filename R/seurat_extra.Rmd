@@ -100,6 +100,41 @@ SeuratMerge = function( dge1, dge2, vars.keep = intersect(names(dge1@data.info),
   return(dge_all)
 }
 
+#' Make small-multiple pie charts.
+#'
+#' @param dge Seurat object
+#' @param ident.use Becomes the categories in the pie chart
+#' @param facet_by Each small multiple contains cases at one level of this variable.
+#' @param col Optional colorscale.
+#' @param label Logical. If TRUE, percentages are added.
+#' @param main Plot title.
+#'
+#' @export
+#'
+SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NULL, label = F, main = "Sample makeup by day" ){
+  X = FetchData( dge, c( ident.use, "eday" )) %>% 
+    table %>% 
+    apply(2, percentify) %>% 
+    melt %>% 
+    plyr::rename(c("value" = "percent")) 
+  X[[facet_by]] %<>% as.character(eday)
+  X$at = 0
+  X = X[order(X[[ident.use]]), ]
+  for(facet_level in unique(X[[facet_by]])){
+    idx = (X[[facet_by]] == facet_level)
+    X[idx, "at"] = 100 - ( cumsum(X[idx, "percent"]) - X[idx, "percent"]/2 )
+  }
+  p = ggplot(X) + ggtitle( main) + 
+    geom_bar( aes_string( y = "percent", x = "factor('')", fill = ident.use ), position = "stack", stat='identity' ) + 
+    coord_polar(theta = "y") + xlab("") + ylab("") + 
+    facet_wrap(facet_by, nrow = 1) + scale_fill_manual( values = col ) + theme(axis.ticks = element_blank(), 
+                                                                               axis.text.y = element_blank(),
+                                                                               axis.text.x = element_blank()) 
+  if( label ) { p = p + geom_text( aes( y = at, x = 1.5, label = percent ) ) }
+  return(p)
+} 
+
+
 #' Test for markers flexibly from a Seurat object.
 #'
 #' Calls FindMarkers with extra features.
@@ -132,10 +167,10 @@ FindMarkersFlex = function( object,
     cat(" \n Computing summaries... \n")
     x = data.frame( gene = genes.use, stringsAsFactors = F )
     rownames( x ) = x$gene
-    group_means = aggregate.nice( x  = FetchData(object, genes.use), 
+    group_means = aggregate_nice( x  = FetchData(object, genes.use), 
                                   by = FetchData(object, ident.use), 
                                   FUN = mean ) %>% t
-    group_pcts  = aggregate.nice( x  = FetchData(object, genes.use), 
+    group_pcts  = aggregate_nice( x  = FetchData(object, genes.use), 
                                   by = FetchData(object, ident.use), 
                                   FUN = prop_nz ) %>% t
     x$avg_diff  = group_means[, ident.1] - group_means[, ident.2]
@@ -169,7 +204,7 @@ FindMarkersFlex = function( object,
                              thresh.use = thresh.use, 
                              min.pct = min.pct, ... )
   }
-  x %<>% (plyr::rename)(c("p_val" = "p.value"))
+  if(is.null(x$p.value)){x$p.value = x$p_val}
   if( !is.null( x$p.value ) ){
     x$q.value = p.adjust( x$p.value, method = "fdr" )
   }
@@ -245,13 +280,13 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
   # Facet to taste
   if(!is.null(facet_by)) {
     p = p + facet_wrap(as.formula(paste0("~", facet_by)))
+    plot_df[[facet_by]] %<>% droplevels
   }
   
   # Add quadrants and percentages
   if( !is.null(cutoffs)){
     p = p + geom_vline(data = data.frame(xint=cutoffs[1]), aes(xintercept=xint))
     p = p + geom_hline(data = data.frame(yint=cutoffs[2]), aes(yintercept=yint))
-    plot_df[[facet_by]] %<>% droplevels
     percentages = plot_df
     percentages[[g1_score_name]] %<>% is_greater_than(cutoffs[1])
     percentages[[g2_score_name]] %<>% is_greater_than(cutoffs[2])
@@ -281,11 +316,13 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
   }
   if( return_val == "all" ){
     return( list( plot = p, 
-                dge = dge, 
-                score_names = c( g1_score_name, g2_score_name ), 
-                genesets = list( g1_similar, g2_similar ),
-                plot_data = plot_df,
-                percentages = percentages ) )
+                  dge = dge, 
+                  genes = list( gene1 = gene1, gene2 = gene2 ),
+                  score_names = c( g1_score_name, g2_score_name ), 
+                  genesets = list( g1_similar, g2_similar ),
+                  cutoffs = cutoffs,
+                  plot_df = plot_df,
+                  percentages = percentages ) )
   } else if( return_val == "seurat" ){
     return(dge)
   } else if( return_val == "plot" ){
@@ -294,5 +331,6 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
     stop(" return_val should be 'all', 'seurat', or 'plot'. ")
   }
 }
+
 
 ```

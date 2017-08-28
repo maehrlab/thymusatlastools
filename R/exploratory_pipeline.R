@@ -368,12 +368,14 @@ time_series = function( dge, gene, colour = "eday", main = NULL, x = "pseudotime
 
 #' Save plots from `times_series`.
 #'
+#' @param types For an explanation of the "types" param, see ?tnse_colored .
+#' 
 #' @export
 time_series_save = function( dge, 
                              results_path, 
                              gene,
                              x = "pseudotime",
-                             types = c("pdf", "pdf_no_leg", "png_pdf_split", "pdf_no_cells"), 
+                             types = c("pdf", "pdf_no_leg"), 
                              width = 8,
                              height = 6,
                              colour = "eday",
@@ -555,7 +557,7 @@ custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("t
 tsne_colored = function(dge, results_path, colour = NULL, fig_name = NULL,
                         axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", 
                         alpha = 1, height = 7, width = 8, 
-                        types = c("PDF", "PDF_no_leg", "PNG_PDF_split"), ... ){
+                        types = c("PDF", "PDF_no_leg" ), ... ){
   
   # Sanitize input -- `aes_string` was choking on a gene with a hyphen (Nkx2-1)
   rownames( dge@data ) = make.names( rownames( dge@data ) )
@@ -619,13 +621,12 @@ tsne_colored = function(dge, results_path, colour = NULL, fig_name = NULL,
 #'
 #' @export
 misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
-                             axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", alpha = 1,
-                             ident.use = "eday" ){
+                             axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", alpha = 1 ){
   results_path = file.path( results_path, "summaries" )
   
   # # Plot summary, checking automatically whether the colour variable is available
-  fplot = function( fig_name, colour, ... ){
-    if( length( colour ) == 0 || colour %in% c( names( dge@data.info ), "ident" ) ){
+  maybeplot = function( fig_name, colour, ... ){
+    if( length( colour ) == 0 || colour %in% AvailableData(dge) ){
       tsne_colored( dge = dge, results_path,
                     fig_name = fig_name, colour = colour, 
                     axes = axes, axes_description = axes_description, alpha = alpha, ...)
@@ -634,16 +635,22 @@ misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
     }
   }
   
-  fplot( fig_name = "plain_gray.pdf", colour = NULL )
-  fplot( "replicates.pdf", "rep" )
-  fplot( "cell_type.pdf" , "cell_type" )
-  fplot( "clusters.pdf"  , "ident" )
-  fplot( "samples.pdf"   , "orig.ident" )
-  fplot( "nGenes.pdf"    , "nGenes" )
-  fplot( "branch.pdf"    , "branch" )
-  fplot( "day.pdf"       , "eday" )
+  maybeplot( "plain_gray.pdf", colour = NULL )
+  maybeplot( "replicates.pdf", "rep" )
+  maybeplot( "cell_type.pdf" , "cell_type" )
+  maybeplot( "clusters.pdf"  , "ident" )
+  maybeplot( "classifier.pdf", "classifier_ident" )
+  maybeplot( "samples.pdf"   , "orig.ident" )
+  maybeplot( "nGenes.pdf"    , "nGenes" )
+  maybeplot( "nUMI.pdf"      , "nUMI" )
+  maybeplot( "branch.pdf"    , "branch" )
+  maybeplot( "pseudotime.pdf", "pseudotime" )
+  maybeplot( "day.pdf"       , "eday", 
+             cols.use = Thanksgiving_colors )
+  maybeplot( "edayXgenotype.pdf"   , "edayXgenotype",
+             cols.use = c(colorRampPalette(Thanksgiving_colors)(5), "cadetblue", "purple") )
+
   if( all( c("pseudotime", "eday") %in% AvailableData( dge ) ) ) {
-    fplot( fig_name = "pseudotime.pdf" , colour = "pseudotime" )
     ggsave( filename = file.path( results_path, "pseudotime_by_eday_box.pdf"),
             plot = ggplot( FetchData( dge, c( "pseudotime", "eday" ) ), 
                            aes( y = pseudotime, x = factor( eday ) ) ) + geom_boxplot() )
@@ -729,19 +736,18 @@ save_feature_plots = function( dge, results_path,
 #' @param `markers`: a character vector; giving gene names.
 #' @param `n`: integer; number of results to return.
 #' @param `anticorr` : allow negatively correlated genes; defaults to `FALSE`.
+#'
 #' Given a Seurat object and a list of gene names, this function returns genes 
 #' that are strongly correlated with those markers. 
+#'
 #' @return character vector.
 #' @export
+#'
 get_similar_genes = function( dge, markers, n, anticorr = F ){
+  markers = intersect(markers, AvailableData( dge ) ) 
   data.use = dge@scale.data
-  if(!all(markers %in% rownames(data.use))){ 
-    warning("Some of your markers have no data available. Trying Various CASE Changes.")
-    markers = unique( c( markers, toupper(markers), Capitalize( markers ) ) )
-  }
-  markers = intersect(markers,
-                      rownames( data.use) ) 
-  correlation = rowSums( data.use %*% t( data.use[markers, , drop = F]) ) 
+  to_match = FetchData( dge, markers ) %>% apply( 2, standardize ) %>% as.matrix 
+  correlation = rowSums( data.use %*% to_match )
   correlation = correlation[ setdiff( names( correlation ), markers ) ]
   if( anticorr ){
     similar_genes = names( sort( abs( correlation ), decreasing = T )[ 1:n ] )
@@ -1011,10 +1017,24 @@ save_heatmap = function( dge, results_path, marker_info,
 #' Make a heatmap with one column for each cluster in `unique( Seurat::FetchData(dge, ident.use)[[1]])` and 
 #' one row for every gene in `genes_in_order`. 
 #' 
+#' @param dge Seurat object
+#' @param desired_cluster_order Levels of FetchData(dge, ident.use)[[1]], ordered how you want them to appear.
+#' @param ident.use Variable to aggregate by.
+#' @param labels "regular" (all labels), "stagger" (all labels, alternating left-right to fit more genes), or "none". 
+#' @param aggregator Function to aggregate expression within a group of cells. Try mean or prop_nz.
+#' @param normalize "row", "column", or "none". Normalization function gets applied across the axis this specifies.
+#' @param norm_fun Function to use for normalization. Try div_by_max or standardize.
+#' @param genes_to_label A (small) subset of genes to label. If set, nullifies labels arg. 
+#' @param main Title of plot.
+#' @param return_type "plot" or "table". If "table", then instead of returning a heatmap, this 
+#' returns the underlying matrix of normalized, cluster-aggregated values. If anything else, returns a ggplot.
+#'
 #' If the cluster's expression values are stored in `x`, then `aggregator(x)` gets (normalized and) plotted.
-#' Optional parameter `desired_cluster_order` gets coerced to character. Should be a permutation of 
-#' `unique(Seurat::FetchData(dge, ident.use))`, though elements may be omitted.
+#' Optional parameter `desired_cluster_order` gets coerced to character. It should be a subset of 
+#' `unique(Seurat::FetchData(dge, ident.use))` (no repeats).
+#'
 #' @export
+#'
 make_heatmap_for_table = function( dge, genes_in_order, 
                                    desired_cluster_order = NULL, 
                                    ident.use = "ident",
@@ -1022,8 +1042,15 @@ make_heatmap_for_table = function( dge, genes_in_order,
                                    aggregator = mean, 
                                    normalize = "row", 
                                    norm_fun = div_by_max,
-                                   main = "Genes aggregated by cluster" ){
-
+                                   genes_to_label = NULL,
+                                   main = "Genes aggregated by cluster",
+                                   return_type = "plot" ){
+  
+  if( !is.null( labels ) && !is.null(genes_to_label) ){
+    warning("labels is ignored when genes_to_label is (are?) specified.\n")
+    labels = "none"
+  }
+  
   # # Set up simple ident variable
   if(is.null(desired_cluster_order)){
     warning("No cell-type ordering given. Using arbitrary ordering.")
@@ -1061,6 +1088,9 @@ make_heatmap_for_table = function( dge, genes_in_order,
     expression_by_cluster = t(expression_by_cluster)
   }
   
+  # # Stop and return data if desired
+  if( return_type == "table" ){ return(expression_by_cluster) }
+  
   # # Form matrix in shape of heatmap and then melt into ggplot
   plot_df_wide = cbind( as.data.frame( expression_by_cluster ) , gene = rownames(expression_by_cluster))
   plot_df_wide$y = 1:nrow(plot_df_wide)
@@ -1078,6 +1108,7 @@ make_heatmap_for_table = function( dge, genes_in_order,
     geom_tile( aes(x = Cluster, y = gene, fill = RelLogExpr ) )
   p = p + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+  # Set default labeling mode according to number of genes
   if( is.null( labels ) ){ 
     if( length( genes_in_order ) < 30 ){
       labels = "regular"
@@ -1088,22 +1119,43 @@ make_heatmap_for_table = function( dge, genes_in_order,
     }
   }
   
+  # # Remove labels if desired
   if( labels=="none"){
     p = p + theme(axis.ticks.y=element_blank(), axis.text.y = element_blank()) 
   }
-  # # Add staggered labels with invisible one farther out to make room
-  if( labels == "stagger" ){
-    p = p + theme(axis.ticks.y=element_blank(), axis.text.y = element_blank())
-    plot_df_long$stagger_pos = rep( c(-0.75, 0), length.out = nrow( plot_df_long ) )
-    invisible_label_row = plot_df_long[1, ]
-    invisible_label_row$gene = ""
-    invisible_label_row$stagger_pos = -1.5
-    invisible_label_row$y = 1
-    plot_df_long = rbind(plot_df_long, invisible_label_row)
-    p = p + geom_text(data = plot_df_long, aes(x = stagger_pos, y = y, label = gene ))
-  }
-  print(p)
   
+  # # Make a DF with labeling info
+  label_df = plot_df_long
+  do_stagger = (labels == "stagger")
+  label_df$horiz_pos = rep( c(-0.75*do_stagger, 0), length.out = nrow( plot_df_long ) )
+  label_df %<>% extract(c("horiz_pos", "y", "gene")) 
+  label_df = label_df[!duplicated(label_df$gene), ]
+  invisible_label_row = label_df[1, ]
+  invisible_label_row$gene = ""
+  invisible_label_row$horiz_pos = -0.75 + min(label_df$horiz_pos)
+  invisible_label_row$y = 1
+  label_df = rbind(invisible_label_row, label_df)
+  
+  # # Add staggered labels with an invisible one farther out to make room (if desired)
+  if( do_stagger ){
+    p = p + theme(axis.ticks.y=element_blank(), axis.text.y = element_blank())
+    p = p + geom_text(data = label_df, aes(x = horiz_pos, y = y, label = gene ))
+  }
+  
+  # # Add only labels for genes_to_label (if desired)
+  if( !is.null(genes_to_label) ){
+    label_df$horiz_pos = 0.5
+    label_df$horiz_pos[[1]] = -0.5
+    label_df$gene[!(label_df$gene %in% genes_to_label)] = ""
+    label_df = label_df[!duplicated(label_df$gene), ]
+    label_layer = geom_text(data = label_df, aes(x = horiz_pos, y = y, label = gene )) 
+      
+    # # Attempt with ggrepel. Unsolved issue: labels migrate on top of heatmap.
+    # label_layer = tryCatch( expr = { ggrepel::geom_label_repel(data = label_df, aes(x = horiz_pos, y = y, label = gene )) },
+    #                         error = function(e){     geom_text(data = label_df, aes(x = horiz_pos, y = y, label = gene )) } )
+    p = p + label_layer 
+
+  }
   return( p )
 }
 

@@ -5,8 +5,7 @@
 \title{Save summary plots: plain gray, eday, clusters, replicates, nUMI, nGene, and pseudotime if available.}
 \usage{
 misc_summary_info(dge, results_path, clusters_with_names = NULL,
-  axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", alpha = 1,
-  ident.use = "eday")
+  axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", alpha = 1)
 }
 \description{
 Save summary plots: plain gray, eday, clusters, replicates, nUMI, nGene, and pseudotime if available.

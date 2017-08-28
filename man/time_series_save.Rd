@@ -5,8 +5,10 @@
 \title{Save plots from `times_series`.}
 \usage{
 time_series_save(dge, results_path, gene, x = "pseudotime", types = c("pdf",
-  "pdf_no_leg", "png_pdf_split", "pdf_no_cells"), width = 8, height = 6,
-  colour = "eday", ...)
+  "pdf_no_leg"), width = 8, height = 6, colour = "eday", ...)
+}
+\arguments{
+\item{types}{For an explanation of the "types" param, see ?tnse_colored .}
 }
 \description{
 Save plots from `times_series`.
