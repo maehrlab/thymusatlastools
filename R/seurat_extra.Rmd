@@ -56,23 +56,26 @@ FetchDataZeroPad = function( dge, vars.all, warn = T, ... ){
 #'
 #' @param dge Seurat object
 #' @param vars.use Variables to fetch for use in `predicate`.
-#' @param predicate String to be parsed into an R expression and evaluated as an arg to `base::subset`.
+#' @param predicate String to be parsed into an R expression and evaluated as an arg to base::subset.
+#' @param preserve_raw If TRUE, then it will not exclude any cells from the @raw.data slot.
+#' By default, it leaves cells in @raw.data only if they satisfy the given predicate.
 #' @details Calls FetchData, subsets it as a dataframe using base::subset, and 
 #' subsets the Seurat object correspondingly (using the df rownames.)
 #'
 #' @export
 #'
-SubsetDataFlex = function( dge, vars.use, predicate, zeropad = TRUE ){
+SubsetDataFlex = function( dge, vars.use, predicate, preserve_raw = FALSE ){
   if( typeof(predicate) != "character"){
     print("predicate should be a character vector. It will be parsed into `subset` as an R expression.")
   }
-  if(zeropad){
-    df = FetchDataZeroPad(dge, vars.use) 
-  } else {
-    df = FetchData(dge, vars.use) 
-  }
+
+  df = FetchData(dge, vars.use) %>% as.data.frame
   cu = df %>% subset(eval(parse(text=predicate))) %>% rownames
-  return( SubsetData(dge, cells.use = cu) )
+  dge = SubsetData(dge, cells.use = cu)
+  if( !preserve_raw ){
+    dge@raw.data = deseuratify_raw_data(dge) 
+  }
+  return( dge )
 }
 
 #' Merge two Seurat objects.
@@ -83,8 +86,9 @@ SubsetDataFlex = function( dge, vars.use, predicate, zeropad = TRUE ){
 #'  
 #' @export
 #' 
-SeuratMerge = function( dge1, dge2, vars.keep = intersect(names(dge1@data.info), 
-                                                          names(dge2@data.info) ) ){
+SeuratMerge = function( dge1, dge2, preserve_ident = F, 
+                        vars.keep = intersect(names(dge1@data.info), 
+                                              names(dge2@data.info) ) ){
   dge_all = list( dge1 = deseuratify_raw_data( dge1 ), 
                   dge2 = deseuratify_raw_data( dge2 ) ) %>%
     dge_merge_list %>% seuratify_thy_data 
@@ -96,6 +100,13 @@ SeuratMerge = function( dge1, dge2, vars.keep = intersect(names(dge1@data.info),
     preserved_metadata %<>% as.data.frame
     rownames(preserved_metadata) = c( rownames(dge1@data.info),rownames(dge2@data.info)) 
     dge_all %<>% AddMetaData( preserved_metadata )     
+  }
+  
+  if(preserve_ident){
+    new_ident = c( characterize_factor(dge1@ident), 
+                   characterize_factor(dge2@ident) )
+    names(new_ident) = c(names(dge1@ident), names(dge2@ident))
+    dge_all %<>% SetIdent(new_ident, cells.use = names(new_ident) )
   }
   return(dge_all)
 }
@@ -112,12 +123,12 @@ SeuratMerge = function( dge1, dge2, vars.keep = intersect(names(dge1@data.info),
 #' @export
 #'
 SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NULL, label = F, main = "Sample makeup by day" ){
-  X = FetchData( dge, c( ident.use, "eday" )) %>% 
+  X = FetchData( dge, c( ident.use, facet_by )) %>% 
     table %>% 
     apply(2, percentify) %>% 
     melt %>% 
     plyr::rename(c("value" = "percent")) 
-  X[[facet_by]] %<>% as.character(eday)
+  X[[facet_by]] %<>% as.character
   X$at = 0
   X = X[order(X[[ident.use]]), ]
   for(facet_level in unique(X[[facet_by]])){
@@ -127,9 +138,10 @@ SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NUL
   p = ggplot(X) + ggtitle( main) + 
     geom_bar( aes_string( y = "percent", x = "factor('')", fill = ident.use ), position = "stack", stat='identity' ) + 
     coord_polar(theta = "y") + xlab("") + ylab("") + 
-    facet_wrap(facet_by, nrow = 1) + scale_fill_manual( values = col ) + theme(axis.ticks = element_blank(), 
-                                                                               axis.text.y = element_blank(),
-                                                                               axis.text.x = element_blank()) 
+    facet_wrap(facet_by, nrow = 1) + theme(axis.ticks = element_blank(), 
+                                           axis.text.y = element_blank(),
+                                           axis.text.x = element_blank()) 
+  if(!is.null(col)){p = p + scale_fill_manual( values = col ) }
   if( label ) { p = p + geom_text( aes( y = at, x = 1.5, label = percent ) ) }
   return(p)
 } 
@@ -242,13 +254,14 @@ SanitizeGenes = function( dge ){
 #' @param return_val If "all", returns a list with several internal calculations revealed.
 #' If "plot", returns just a ggplot object. If "seurat", returns a Seurat object with gene scores added. 
 #' @param cutoffs If given, divide plot into four quadrants and annotate with percentages. Numeric vector of length 2.
+#' @param density If TRUE, plot contours instead of points.
 #' @param num_genes_add Each axis shows a simple sum of similar genes. This is how many (before removing overlap). Integer.
 #'
 #' @export 
 #'
 TACS = function( dge, gene1, gene2, genesets_predetermined = F, 
                  return_val = "plot", 
-                 num_genes_add = 100, facet_by = NULL, cutoffs = NULL ){
+                 num_genes_add = 100, facet_by = NULL, cutoffs = NULL, density = F ){
   
   # Get gene sets to average
   if(genesets_predetermined){
@@ -273,9 +286,15 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
   dge %<>% AddMetaData(g2_score, col.name = g2_score_name)
   plot_df = FetchData(dge, c(g1_score_name, g2_score_name, facet_by))
   
+
   # Form plot
-  p = ggplot(plot_df) + 
-    geom_point( aes_string( x=g1_score_name, y=g2_score_name ) ) 
+  p = ggplot(plot_df) 
+  if(density){ 
+    p = p + geom_bin2d( aes_string( x=g1_score_name, y=g2_score_name, fill = "..density.." ) ) + 
+      scale_fill_gradient2(low = "white", high = "black" ) 
+  } else {
+    p = p + geom_point( aes_string( x=g1_score_name, y=g2_score_name ) ) 
+  }
   p = p + expand_limits(y=0, x=0)
   # Facet to taste
   if(!is.null(facet_by)) {
@@ -285,35 +304,13 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
   
   # Add quadrants and percentages
   if( !is.null(cutoffs)){
-    p = p + geom_vline(data = data.frame(xint=cutoffs[1]), aes(xintercept=xint))
-    p = p + geom_hline(data = data.frame(yint=cutoffs[2]), aes(yintercept=yint))
-    percentages = plot_df
-    percentages[[g1_score_name]] %<>% is_greater_than(cutoffs[1])
-    percentages[[g2_score_name]] %<>% is_greater_than(cutoffs[2])
-    percentages %<>% table %>% melt 
-    if(!is.null(facet_by)) {
-      percentages = percentages[order(percentages[[facet_by]]), ]
-      for( facet_level in seq_along(unique(plot_df[[facet_by]]))){
-        percentages$value[1:4 + 4*(facet_level-1)] %<>% percentify()
-      }
-    } else {
-      percentages$value %<>% percentify()
-    }
-    
-    # Form annotation DF with correct facet and attempting sensible placement of percentages
-    for( i in seq_along(percentages$value)){
-      annot_df = data.frame(
-        x = ifelse( percentages[i, g1_score_name], cutoffs[1]*2, cutoffs[1]*0.35) ,
-        y = ifelse( percentages[i, g2_score_name], cutoffs[2]*2, cutoffs[2]*0.25) ,
-        label = paste0( round(percentages$value[i], 1), "%") )
-      if(!is.null(facet_by)) {
-        annot_df[[facet_by]] = percentages[i, facet_by]
-      }
-      p = p + geom_text( data = annot_df, aes(x=x,y=y,label=label) )                
-    }
+    add_quadrants(p = p, g1_score_name = g1_score_name, g2_score_name = g2_score_name, 
+                  cutoffs = cutoffs, facet_by = facet_by)
   } else {
     percentages = NULL
   }
+  
+  # Return everything or just a plot or just a seurat object
   if( return_val == "all" ){
     return( list( plot = p, 
                   dge = dge, 
@@ -332,5 +329,47 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
   }
 }
 
-
+#' Split a scatterplot (or similar) into quadrants and label percentages in each quadrant. 
+#'
+#' @param dge Seurat object
+#' @param cutoffs numeric vector of length 2. Where to delineate the quadrants.
+#' @param facet_by optional facetting variable. Percents are calculated separately for each facet.
+#'
+#' This is a helper for TACS, but it's exported in case it becomes useful.
+#'
+#' @export 
+#'
+add_quadrants = function(p, g1_score_name, g2_score_name, cutoffs, facet_by = NULL){
+  
+  # Calculate percentages
+  p = p + geom_vline(data = data.frame(xint=cutoffs[1]), aes(xintercept=xint))
+  p = p + geom_hline(data = data.frame(yint=cutoffs[2]), aes(yintercept=yint))
+  percentages = p$data[c(g1_score_name, g2_score_name, facet_by)]
+  percentages[[g1_score_name]] %<>% is_greater_than(cutoffs[1])
+  percentages[[g2_score_name]] %<>% is_greater_than(cutoffs[2])
+  percentages %<>% table %>% melt 
+  if(!is.null(facet_by)) {
+    percentages = percentages[order(percentages[[facet_by]]), ]
+    for( facet_level in seq_along(unique(p$data[[facet_by]]))){
+      percentages$value[1:4 + 4*(facet_level-1)] %<>% percentify()
+    }
+  } else {
+    percentages$value %<>% percentify()
+  }
+  
+  # Form annotation DF with correct facet and attempt sensible placement of percentages
+  for( i in seq_along(percentages$value)){
+    if(percentages$value[i]==0){next}
+    annot_df = data.frame(
+      x = ifelse( percentages[i, g1_score_name], cutoffs[1]*2, cutoffs[1]*0.35) ,
+      y = ifelse( percentages[i, g2_score_name], cutoffs[2]*2, cutoffs[2]*0.25) ,
+      label = paste0( round(percentages$value[i], 1), "%") )
+    if(!is.null(facet_by)) {
+      annot_df[[facet_by]] = percentages[i, facet_by]
+    }
+    p = p + geom_text( data = annot_df, aes(x=x,y=y,label=label) )                
+  }
+  
+  return(p)
+}
 ```

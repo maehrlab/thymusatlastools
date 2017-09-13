@@ -663,7 +663,7 @@ ProjectCells = function( dge_train, dge_test,
                          pc.use = 1:25, 
                          test_mode = F ){
   
-  if(any(pc.use > ncol(dge@pca.x))){
+  if(any(pc.use > ncol(dge_train@pca.x))){
     stop("Not enough principal components available in trainset. Compute moar. \n")
   }
   

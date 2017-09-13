@@ -66,7 +66,7 @@ assertthat::are_equal(normalize_cpx_amt(demo1, results_path = NULL), 10000)
 #' gene. 
 #' @export
 seuratify_thy_data = function(raw_dge, results_path = NULL, test_mode = F, 
-                              min.genes = 1000, min.cells = 3 ){
+                              min.genes = 1000, min.cells = 3, ... ){
   atat(1 < raw_dge %>% dim %>% min %>% min)
 
   total_desired = normalize_cpx_amt( raw_dge, results_path )
@@ -79,7 +79,7 @@ seuratify_thy_data = function(raw_dge, results_path = NULL, test_mode = F,
                       do.logNormalize = F, 
                       project = "thymus_scRNAseq", 
                       names.delim = "\\|",
-                      names.field = 2 )
+                      names.field = 2, ... )
   
   # # Make sure the raw data is just UMI counts and update the nUMI field, which will be
   # # filled incorrectly given the above
@@ -219,6 +219,25 @@ dge_merge_list = function(dge_list, allow_barcode_overlap = F){
 
 
 ```{r}
+#' Get metadata from the thymusatlasdataprivate or thymusatlasdatapublic packages.
+#'
+#' If you have both installed, thymusatlasdataprivate is preferred.
+#' 
+#' @export
+#'
+get_metadata = function(){
+  public  = tryCatch( thymusatlasdatapublic::get_metadata(), error = function(e) return("not_available"))
+  private = tryCatch(thymusatlasdataprivate::get_metadata(), error = function(e) return("not_available"))
+  if( identical(public, "not_available" ) && identical(private, "not_available" )){
+    stop(paste0("You need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n", 
+                "the Maehr lab metadata. You could also try to directly specify the metadata. Use a dataframe with\n",
+                "a variable called 'Sample_ID'. \n"))
+  } else if( !identical( private, "not_available" )){
+    return(private)
+  } else {
+    return(public)
+  }
+}
 
 #' Given a Seurat object, add information about our experiments.
 #'
@@ -227,7 +246,7 @@ dge_merge_list = function(dge_list, allow_barcode_overlap = F){
 #' It relies on being able to match "Sample_ID" to "orig.ident".
 #' @export
 add_maehrlab_metadata = function( dge, variable_to_add, new_name = NULL, NA_strings = c("NA", ""),
-                                  maehrlab_metadata = thymusatlasdatapublic::get_metadata() ){
+                                  maehrlab_metadata = get_metadata() ){
   
   unknown_sample = !all(levels( dge@data.info$orig.ident ) %in% maehrlab_metadata[["Sample_ID"]] )
   unknown_var =    !variable_to_add %in% names( maehrlab_metadata ) 
@@ -291,6 +310,9 @@ add_tcr = function( dge, metadata = thymusatlasdataprivate::get_metadata() ){
     }
   }
   tcr_matrices %<>% Filter(f = function(x) {!identical(x, "NO_MATCH")})
+    
+  # This line ensures there are no cells lurking in the raw data that were excluded downstream.
+  dge@raw.data = deseuratify_raw_data(dge) 
   
   # Merge into Seurat object @raw.data, but keep the old UMI counts to normalize later
   normalization_totals = dge@raw.data %>% colSums

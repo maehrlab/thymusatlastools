@@ -4,14 +4,17 @@
 \alias{SubsetDataFlex}
 \title{Subset data flexibly from a Seurat object.}
 \usage{
-SubsetDataFlex(dge, vars.use, predicate, zeropad = TRUE)
+SubsetDataFlex(dge, vars.use, predicate, preserve_raw = FALSE)
 }
 \arguments{
 \item{dge}{Seurat object}
 
 \item{vars.use}{Variables to fetch for use in `predicate`.}
 
-\item{predicate}{String to be parsed into an R expression and evaluated as an arg to `base::subset`.}
+\item{predicate}{String to be parsed into an R expression and evaluated as an arg to base::subset.}
+
+\item{preserve_raw}{If TRUE, then it will not exclude any cells from the @raw.data slot.
+By default, it leaves cells in @raw.data only if they satisfy the given predicate.}
 }
 \description{
 Subset data flexibly from a Seurat object.

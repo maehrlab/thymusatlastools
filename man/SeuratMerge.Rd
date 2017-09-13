@@ -4,8 +4,8 @@
 \alias{SeuratMerge}
 \title{Merge two Seurat objects.}
 \usage{
-SeuratMerge(dge1, dge2, vars.keep = intersect(names(dge1@data.info),
-  names(dge2@data.info)))
+SeuratMerge(dge1, dge2, preserve_ident = F,
+  vars.keep = intersect(names(dge1@data.info), names(dge2@data.info)))
 }
 \description{
 By default, preserves any column of @data.info shared between both objects.  

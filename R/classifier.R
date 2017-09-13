@@ -148,8 +148,9 @@ expected_doublet_counts = function( x, rate = 0.05 ){
 #' or the coordinates of interest.
 #' @export
 knn_classifier = function( dge_train, dge_test, ident.use = "ident", 
-                           vars.all = NULL, my_transform = NULL, badness = NULL,
-                           k = 25, reject_prop = 0.01 ){
+                           vars.all = NULL, my_transform = "PCA_20", badness = NULL,
+                           k = 25, reject_prop = 0 ){
+  
   if( is.null( vars.all ) ){ 
     vars.all = union( dge_train@var.genes, dge_test@var.genes ) 
   }
@@ -230,20 +231,20 @@ knn_classifier = function( dge_train, dge_test, ident.use = "ident",
   classifier_badness_self = classifier_badness_self / sd(classifier_badness_self)
   
   # # Set threshold and label rejects
-  cat("Labeling rejects with attempted controls on false rejection rate ... \n")
-  threshold = quantile( classifier_badness_self, 1 - reject_prop )
-  hist( classifier_badness_self,  breaks = 80, col = scales::alpha("blue", 0.5))
-  hist( classifier_badness,       breaks = 80, col = scales::alpha("red", 0.5),
-        add = T, 
-        main = "Held-out set badness and threshold",
-        xlab = "Average distance to neighbors (train = blue, test = red)" )
-  abline( v = threshold )
-  text( x = threshold*1.05, y = 100, labels = "Reject", srt = 90 )
-  text( x = threshold*0.95, y = 100, labels = "Classify", srt = 90 )
+  if( reject_prop > 0 ){ 
+    cat("Labeling rejects with attempted controls on false rejection rate ... \n")
+    threshold = quantile( classifier_badness_self, 1 - reject_prop )
+    hist( classifier_badness_self,  breaks = 80, col = scales::alpha("blue", 0.5))
+    hist( classifier_badness,       breaks = 80, col = scales::alpha("red", 0.5),
+          add = T, 
+          main = "Held-out set badness and threshold",
+          xlab = "Average distance to neighbors (train = blue, test = red)" )
+    abline( v = threshold )
+    text( x = threshold*1.05, y = 100, labels = "Reject", srt = 90 )
+    text( x = threshold*0.95, y = 100, labels = "Classify", srt = 90 )
+    classifier_ident[classifier_badness >= threshold] = "reject"
+  }
 
-  classifier_ident[classifier_badness >= threshold] = "reject"
-  classifier_ident %>% table
-  
   # # Save data and return
   to_add = cbind(          classifier_ident,   
                            classifier_badness,            

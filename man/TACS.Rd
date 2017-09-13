@@ -5,7 +5,7 @@
 \title{Make a FACS-like plot from a single-cell rna-seq dataset.}
 \usage{
 TACS(dge, gene1, gene2, genesets_predetermined = F, return_val = "plot",
-  num_genes_add = 100, facet_by = NULL, cutoffs = NULL)
+  num_genes_add = 100, facet_by = NULL, cutoffs = NULL, density = F)
 }
 \arguments{
 \item{dge}{Seurat object}
@@ -23,6 +23,8 @@ If "plot", returns just a ggplot object. If "seurat", returns a Seurat object wi
 \item{num_genes_add}{Each axis shows a simple sum of similar genes. This is how many (before removing overlap). Integer.}
 
 \item{cutoffs}{If given, divide plot into four quadrants and annotate with percentages. Numeric vector of length 2.}
+
+\item{density}{If TRUE, plot contours instead of points.}
 }
 \description{
 Make a FACS-like plot from a single-cell rna-seq dataset.

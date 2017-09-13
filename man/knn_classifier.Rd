@@ -5,7 +5,7 @@
 \title{Classify cells from one Seurat object in terms of another Seurat object's identity field, with a "reject option" for unfamiliar cells.}
 \usage{
 knn_classifier(dge_train, dge_test, ident.use = "ident", vars.all = NULL,
-  my_transform = NULL, badness = NULL, k = 25, reject_prop = 0.01)
+  my_transform = "PCA_20", badness = NULL, k = 25, reject_prop = 0)
 }
 \arguments{
 \item{dge_train}{Cells to train classifier on. Seurat object.}

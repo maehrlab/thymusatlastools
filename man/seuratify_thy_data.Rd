@@ -5,7 +5,7 @@
 \title{Make arrays into Seurat objects.}
 \usage{
 seuratify_thy_data(raw_dge, results_path = NULL, test_mode = F,
-  min.genes = 1000, min.cells = 3)
+  min.genes = 1000, min.cells = 3, ...)
 }
 \description{
 Keeps all genes expressed in at least

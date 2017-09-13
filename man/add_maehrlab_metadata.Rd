@@ -5,8 +5,7 @@
 \title{Given a Seurat object, add information about our experiments.}
 \usage{
 add_maehrlab_metadata(dge, variable_to_add, new_name = NULL,
-  NA_strings = c("NA", ""),
-  maehrlab_metadata = thymusatlasdatapublic::get_metadata())
+  NA_strings = c("NA", ""), maehrlab_metadata = get_metadata())
 }
 \description{
 Given a Seurat object, add information about our experiments.
