@@ -294,8 +294,10 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
   
   # Add quadrants and percentages
   if( !is.null(cutoffs)){
-    add_quadrants(p = p, g1_score_name = g1_score_name, g2_score_name = g2_score_name, 
-                  cutoffs = cutoffs, facet_by = facet_by)
+    p %<>% add_quadrants(g1_score_name = g1_score_name,
+                         g2_score_name = g2_score_name, 
+                         cutoffs = cutoffs,
+                         facet_by = facet_by)
   } else {
     percentages = NULL
   }

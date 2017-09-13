@@ -156,7 +156,7 @@ deseuratify_raw_data = function( seurat_dge, retrieve_anew = F ){
   
   atae(raw_dge, round( raw_dge ) )
   atae(desired_genes, rownames( raw_dge ) )
-  return( raw_dge )
+  return( as.matrix( raw_dge ) )
 }
 
 
@@ -212,7 +212,7 @@ dge_merge_list = function(dge_list, allow_barcode_overlap = F){
   }
   assertthat::assert_that(!is.null(colnames(new_dge)))
   assertthat::assert_that(!is.null(rownames(new_dge)))
-  return( new_dge )
+  return( as.matrix( new_dge )) 
 }
 
 ```
@@ -281,6 +281,7 @@ add_maehrlab_metadata = function( dge, variable_to_add, new_name = NULL, NA_stri
 #' @export
 #'
 add_tcr = function( dge, metadata = thymusatlasdataprivate::get_metadata() ){
+  
   # Filter metadata down to essentials
   samples_needed = levels(FetchData(dge, "orig.ident")[[1]])
   metadata = subset( metadata, Sample_ID %in% samples_needed, 
@@ -295,13 +296,13 @@ add_tcr = function( dge, metadata = thymusatlasdataprivate::get_metadata() ){
   
   # Read in TCR expression
   tcr_matrices = lapply(tcr_paths$tcr_dge_path, read.table, header = T, row.names = 1)
-  
+
+  # Filter out cells not present in dge, handling situations with no matches
   for( i in seq_along( tcr_matrices ) ){
     # Append correct sample ID to barcodes, asserting that it's not there yet
     # I used the pipe as a separator. Probably a naïve choice but I'm stuck now.
     atae( 0, length(grep("\\|", colnames(tcr_matrices[[i]]) ) ) )
     colnames(tcr_matrices[[i]]) %<>% paste0("|", tcr_paths$Sample_ID[[i]] )
-    # Filter out cells not present in dge, handling situations with no matches
     tcr_cells = tcr_matrices[[i]] %>% colnames %>% intersect(dge@cell.names)
     if (length(tcr_cells)==0){
       tcr_matrices[[i]] = "NO_MATCH"
@@ -310,24 +311,51 @@ add_tcr = function( dge, metadata = thymusatlasdataprivate::get_metadata() ){
     }
   }
   tcr_matrices %<>% Filter(f = function(x) {!identical(x, "NO_MATCH")})
+  
+  # Get list of TCR genes
+  all_tcr_genes = thymusatlastools:::ALL_TCR_GENES
+  atat(!is.null(all_tcr_genes))
+  
+  # Filter out non-TCR genes
+  for( i in seq_along( tcr_matrices ) ){
+    tcr_genes_present = tcr_matrices[[i]] %>% rownames %>% intersect(all_tcr_genes)
+    if (length(tcr_genes_present)==0){
+      tcr_matrices[[i]] = "NO_MATCH"
+    } else {
+      tcr_matrices[[i]] %<>% extract(tcr_genes_present, )
+    }
+  }
+  tcr_matrices %<>% Filter(f = function(x) {!identical(x, "NO_MATCH")})
     
-  # This line ensures there are no cells lurking in the raw data that were excluded downstream.
+  # Remove any cells lurking in the raw data that were excluded downstream.
   dge@raw.data = deseuratify_raw_data(dge) 
   
-  # Merge into Seurat object @raw.data, but keep the old UMI counts to normalize later
+  # Merge into Seurat object @raw.data, but keep the old UMI counts to preserve the normalization.
   normalization_totals = dge@raw.data %>% colSums
   for( i in seq_along( tcr_matrices ) ){
+    # Overwrite existing UMIs to avoid double-counting.
+    dge@raw.data[intersect(rownames(dge@raw.data), all_tcr_genes), ] = 0
     dge@raw.data = dge_merge_list(list(dge = dge@raw.data,
                                        tcr_i = tcr_matrices[[i]]),
                                   allow_barcode_overlap = TRUE )
   }
-  dge@data = log2( 1 + 1e4*sweep( dge@raw.data, MARGIN = 2, STATS = normalization_totals, FUN = "/" ) )
+  dge@raw.data %<>% as.matrix
+
+  # Merge into Seurat object @data.
+  old_lognorm = dge@data 
+  dge@data = log2( 1 + 1e4*sweep( dge@raw.data, MARGIN = 2, STATS = normalization_totals, FUN = "/" ) ) 
+  non_tcr_genes = dge@data %>% rownames %>% setdiff(all_tcr_genes)
+  if( !all( dge@data[non_tcr_genes,] == old_lognorm[non_tcr_genes,] ) ){
+    warning(paste0("Normalized data does not quite match raw data. \n",
+                   "Renormalizing TCR counts with current cellwise UMI counts.\n",
+                   "Leaving non-TCR normalized data untouched.\n"))
+    dge@data[non_tcr_genes,] = old_lognorm[non_tcr_genes,] %>% as.matrix
+  }
   
-  # Add metadata for total TCR A, B, D, and G expression
-  all_tcr_genes = tcr_matrices %>% lapply(rownames) %>% Reduce(f=union)
+  # Add total TCR A, B, D, and G expression to metadata
   for( pattern in paste0("TR", c("A", "B", "D", "G"))){
     gene_segments = all_tcr_genes[grep(pattern, all_tcr_genes, ignore.case = TRUE)]
-    dge %<>% AddMetaData( FetchData(dge, gene_segments) %>% rowSums, col.name = paste0(pattern, "_TOTAL"))
+    dge %<>% AddMetaData( FetchDataZeroPad(dge, gene_segments) %>% rowSums, col.name = paste0(pattern, "_TOTAL"))
   }
   
   return( dge )

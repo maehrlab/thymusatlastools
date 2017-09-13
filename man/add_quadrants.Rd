@@ -4,7 +4,7 @@
 \alias{add_quadrants}
 \title{Split a scatterplot (or similar) into quadrants and label percentages in each quadrant.}
 \usage{
-add_quadrants(p, cutoffs, facet_by = NULL)
+add_quadrants(p, g1_score_name, g2_score_name, cutoffs, facet_by = NULL)
 }
 \arguments{
 \item{cutoffs}{numeric vector of length 2. Where to delineate the quadrants.}
