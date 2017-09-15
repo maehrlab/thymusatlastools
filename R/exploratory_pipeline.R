@@ -768,34 +768,35 @@ do_enrichr = function( results_path, geneset, geneset_name,
                                        "NCI-Nature_2016", 
                                        "GO_Biological_Process_2015" ),
                        N_ANNOT_PER_DB = 2 ){
-  dir.create.nice( results_path )
+  
+  my_rp = file.path( results_path, paste0("annot_", geneset_name) )
+  dir.create.nice( my_rp )
   
   # # Get enrichr results and parse them
-  output_table = enrichR::enrichGeneList( gene.list = geneset, databases = desired_db ) 
-  output_table %<>% group_by( database ) %>% top_n( wt = -pval, n = N_ANNOT_PER_DB) %>% as.data.frame
-  output_table$pval = NULL
-  output_table %<>% mutate( log10_qval = round( log10( qval ), 1 ) )
-  output_table$qval = NULL
-  output_table = output_table[c(1,2,4,3)]
+  output_table = enrichR::enrichr( genes = geneset, databases = desired_db ) 
+  output_table %<>% mapply(desired_db, FUN = function(X, db) {X$database = db; return(X)}, SIMPLIFY = F)
+  output_table %<>% Reduce( f=rbind )
+  output_table %<>% group_by( database ) %>% top_n( wt = -P.value, n = N_ANNOT_PER_DB) %>% as.data.frame
+  output_table %<>% mutate( log10_qval = round( log10( Adjusted.P.value ), 1 ) )
+  output_table = output_table[c("database", "Term", "Overlap", "log10_qval", "Genes")]
+  
   # # Save raw table
   write.table( x = output_table, 
-               file = file.path( results_path, paste0("annot_", geneset_name, "_raw.txt" ) ),
+               file = file.path( my_rp, "raw.txt"  ),
                sep = "\t", quote = F, row.names = T, col.names = T )
  
   write.table( x = geneset, 
-               file = file.path( results_path, paste0("annot_", geneset_name, "_annotated_genes.txt" ) ),
+               file = file.path( my_rp, "annotated_genes.txt"  ),
                sep = "\t", quote = F, row.names = F, col.names = F )
-  # # Don't include genes in pretty version
-  output_table$genes  = NULL
-
-  
-  # # Set up color palette and print to file
+ 
+  # # Save pretty version
+  output_table$Genes  = NULL
   n_colors = length(unique(output_table$database)); 
   color_idx = output_table$database %>% factor(levels = desired_db, ordered = T) %>% as.integer
   my_cols = scales::hue_pal()(n_colors)[ color_idx ]
   theme_color_db = ttheme_minimal( core=list( bg_params = list( fill = my_cols ) ) )
   ggsave( tableGrob( d = output_table, theme = theme_color_db ), 
-          file = file.path( results_path, paste0("annot_", geneset_name, "_color=database.pdf")  ), 
+          file = file.path( my_rp, "color=database.pdf" ), 
           width = 15, height = N_ANNOT_PER_DB*length(desired_db) / 3, limitsize = F )
 }
 

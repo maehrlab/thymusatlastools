@@ -241,33 +241,39 @@ SanitizeGenes = function( dge ){
 #' @param gene2 Vertical axis on plot mimics this gene. Character, usually length 1 but possibly longer. 
 #' @param genesets_predetermined If FALSE, plot the sum of many genes similar to gene1 instead of gene1 alone (same 
 #' for gene2). See ?get_similar_genes. If TRUE, plot the sum of only the genes given.
+#' @param dge_reference Seurat object. This function relies on gene-gene correlation. If your dataset is perturbed in a way 
+#' that would substantially alter gene-gene correlations, for example if different time points are present or certain 
+#' cell types are mostly depleted, you can feed in a reference dge, and TACS will choose axes based on the reference data.
 #' @param return_val If "all", returns a list with several internal calculations revealed.
 #' If "plot", returns just a ggplot object. If "seurat", returns a Seurat object with gene scores added. 
 #' @param cutoffs If given, divide plot into four quadrants and annotate with percentages. Numeric vector of length 2.
 #' @param density If TRUE, plot contours instead of points.
 #' @param num_genes_add Each axis shows a simple sum of similar genes. This is how many (before removing overlap). Integer.
 #'
+#' This function is based on a simple scheme: choose genes similar to the ones specified 
+#' and average them to get past the noise. 
+#'
 #' @export 
 #'
 TACS = function( dge, gene1, gene2, genesets_predetermined = F, 
                  return_val = "plot", 
-                 num_genes_add = 100, facet_by = NULL, cutoffs = NULL, density = F ){
+                 num_genes_add = 100, facet_by = NULL, cutoffs = NULL, density = F, dge_reference = dge ){
   
   # Get gene sets to average
   if(genesets_predetermined){
     g1_similar = gene1
     g2_similar = gene2
   } else {
-    g1_similar = get_similar_genes(dge, gene1, num_genes_add) %>% c( gene1, . )
-    g2_similar = get_similar_genes(dge, gene2, num_genes_add) %>% c( gene2, . ) 
+    g1_similar = get_similar_genes(dge_reference, gene1, num_genes_add) %>% c( gene1, . )
+    g2_similar = get_similar_genes(dge_reference, gene2, num_genes_add) %>% c( gene2, . ) 
     shared = intersect(g1_similar, g2_similar)
     g1_similar %<>% setdiff(shared)
     g2_similar %<>% setdiff(shared)
   }
   
   # Average gene sets to get scores
-  g1_score = rowMeans(FetchData(dge, g1_similar))
-  g2_score = rowMeans(FetchData(dge, g2_similar))
+  g1_score = rowMeans(FetchDataZeroPad(dge, g1_similar))
+  g2_score = rowMeans(FetchDataZeroPad(dge, g2_similar))
   g1_score_name = paste0(gene1[1], "_score")
   g2_score_name = paste0(gene2[1], "_score")
   
