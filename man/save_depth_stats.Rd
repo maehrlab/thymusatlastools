@@ -4,8 +4,7 @@
 \alias{save_depth_stats}
 \title{Assemble very basic summary stats: total UMIs, genes, and cells.}
 \usage{
-save_depth_stats(results_path, samples = NULL,
-  metadata = thymusatlasdataprivate::get_metadata())
+save_depth_stats(results_path, samples = NULL, metadata = get_metadata())
 }
 \description{
 Assemble very basic summary stats: total UMIs, genes, and cells.

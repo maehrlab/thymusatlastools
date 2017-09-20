@@ -4,11 +4,13 @@
 #'
 #' @export
 #'
-save_depth_stats = function(results_path, samples = NULL, metadata = thymusatlasdataprivate::get_metadata()) {
-  get1 = function(sample) load_thymus_profiling_data(sample, convert_all_to_mouse = F)[[1]]
+save_depth_stats = function(results_path, samples = NULL, metadata = get_metadata()) {
+  all_runs = as.list(subset(metadata, select = "Sample_ID", files_available == "yes", drop = T) )
+  names( all_runs ) = all_runs
+  get1 = function(sample) load_thymus_profiling_data(sample)[[1]]
   dimsum = function(X) c(dim(X), sum(X))
   basic_stats = data.frame( Reduce( rbind, lapply( all_runs, function(s) {dimsum( get1( s ) )} ) ) )
-  rownames(basic_stats) = samples 
+  rownames(basic_stats) = all_runs 
   colnames(basic_stats) = c( "transcripts", "cells", "UMIs" )
   basic_stats$Sample_ID = rownames( basic_stats )
   write.table( basic_stats, file = file.path( results_path, "basics_stats.txt" ),
@@ -20,28 +22,26 @@ save_depth_stats = function(results_path, samples = NULL, metadata = thymusatlas
 #'
 #' @export
 #'
-check_all_scRNA = function( results_path, samples = NULL, metadata = thymusatlasdataprivate::get_metadata() ){
+check_xist_all = function( results_path, samples = NULL, metadata = get_metadata() ){
   if(!is.null(samples)){
     metadata %<>% subset( Sample_ID %in% samples )
   }
-  
   # # Load the data; check for xist versus y chromosome genes
-  all_runs = as.list(metadata$Sample_ID[metadata$file_exists_auto] ); names( all_runs ) = all_runs
-  for( rep_name in names( all_runs ) ){
-    all_runs[[rep_name]] = load_thymus_profiling_data( sample_ids = rep_name, test_mode = F, convert_all_to_mouse = F )[[1]]
-    check_xist( raw_dge = all_runs[[rep_name]], 
-                rep_name = rep_name, 
-                results_path = file.path( results_path, "Xist_check" ) ) 
+  all_runs = subset(metadata, files_available == "yes", select = "Sample_ID", drop = T) 
+  for( rep_name in all_runs ){
+    check_xist_pure( raw_dge = load_thymus_profiling_data( sample_ids = rep_name, test_mode = F )[[1]], 
+                     rep_name = rep_name, 
+                     results_path = file.path( results_path, "Xist_check" ) ) 
   }
 }
 
+  
 #' Check for female-specific and male-specific transcripts
 #' 
 #' @param raw_dge numeric matrix of raw molecule counts with genes in the rownames.
 #'
-#' @export
-#'
-check_xist = function( raw_dge, rep_name, results_path ){
+check_xist_pure = function( raw_dge, rep_name, results_path ){
+
   dir.create.nice( results_path )
   print( paste0( "Checking for Xist in ", rep_name ) )
   # # try the gene as given, plus Capitalized, plus in UPPER CASE. Else return zeroes.

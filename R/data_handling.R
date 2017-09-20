@@ -205,19 +205,32 @@ dge_merge_list = function(dge_list, allow_barcode_overlap = F){
 
 
 ## ------------------------------------------------------------------------
+
+#' Print errors or warnings but return a predictable 'not_available'.
+#' 
+#' Helps wrap calls to thymusatlasdataprivate and thymusatlasdatapublic in tryCatch blocks.
+#'
+my_err = function( e, package_tried, err_or_warn = "Error", verbose = T ){
+  if(verbose){
+    cat(err_or_warn, " received while trying ", package_tried, "::get_metadata:\n", e, "\n")
+  }
+  return("not_available")
+}
+
 #' Get metadata from the thymusatlasdataprivate or thymusatlasdatapublic packages.
 #'
 #' If you have both installed, thymusatlasdataprivate is preferred.
 #' 
 #' @export
 #'
-get_metadata = function(){
-  public  = tryCatch( thymusatlasdatapublic::get_metadata(), error = function(e) return("not_available"))
-  private = tryCatch(thymusatlasdataprivate::get_metadata(), error = function(e) return("not_available"))
+get_metadata = function( ..., verbose = F ){
+  public  = tryCatch( thymusatlasdatapublic::get_metadata( ... ),
+                     error = function(e) my_err(package_tried = "thymusatlasdatapublic", verbose = verbose))
+  private = tryCatch(thymusatlasdataprivate::get_metadata( ... ), 
+                     error = function(e) my_err(package_tried = "thymusatlasdatapublic", verbose = verbose))
   if( identical(public, "not_available" ) && identical(private, "not_available" )){
-    stop(paste0("You need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n", 
-                "the Maehr lab metadata. You could also try to directly specify the metadata. Use a dataframe with\n",
-                "a variable called 'Sample_ID'. \n"))
+    stop(paste0("You may need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n", 
+                "the Maehr lab metadata. If they are installed, use verbose=T or call them directly to see the error. \n"))
   } else if( !identical( private, "not_available" )){
     return(private)
   } else {
@@ -227,10 +240,13 @@ get_metadata = function(){
 
 #' Given a Seurat object, add information about our experiments.
 #'
-#' @details It looks in `maehrlab_metadata` for a column named `variable_to_add` and adds that to @data.info with the 
+#' @details It looks in `get_metadata()` for a column named `variable_to_add` and adds 
+#' that variable to @data.info with the 
 #' name `new_name` (default is `variable_to_add`).
-#' It relies on being able to match "Sample_ID" to "orig.ident".
+#' It finds the right cells by matching "Sample_ID" to "orig.ident".
+#' 
 #' @export
+#'
 add_maehrlab_metadata = function( dge, variable_to_add, new_name = NULL, NA_strings = c("NA", ""),
                                   maehrlab_metadata = get_metadata() ){
   
@@ -255,6 +271,35 @@ add_maehrlab_metadata = function( dge, variable_to_add, new_name = NULL, NA_stri
   if( is.null( new_name ) ){ new_name = variable_to_add }
   dge = Seurat::AddMetaData( dge, metadata = new_temp, col.name = new_name )
   return( dge )
+}
+
+#' Get digital gene expression matrices from either thymusatlasdataprivate or thymusatlasdatapublic.
+#'
+#' If you have both available, thymusatlasdataprivate is preferred.
+#'
+#' @export
+#'
+load_thymus_profiling_data = function( ..., verbose = F ){
+  
+  
+  #Try private 
+  private = tryCatch( thymusatlasdataprivate::load_maehrlab_private_data( ... ), 
+                       error = function(e) my_err(package_tried = "thymusatlasdataprivate"))
+  if( !identical( private, "not_available" )){
+    return(private)
+  } 
+  
+  #Try public 
+  public = tryCatch( thymusatlasdatapublic::load_thymus_profiling_data( ... ), 
+                     error = function(e) my_err(package_tried = "thymusatlasdatapublic"))
+  if( !identical( private, "not_available" )){
+    return(public)
+  }  
+  
+  #Give up
+  stop(paste0("You may need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n", 
+              "the Maehr lab data. If they are installed, use verbose=T or call them directly to see the error. \n"))
+
 }
 
 

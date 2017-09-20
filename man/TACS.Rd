@@ -6,7 +6,7 @@
 \usage{
 TACS(dge, gene1, gene2, genesets_predetermined = F, return_val = "plot",
   num_genes_add = 100, facet_by = NULL, cutoffs = NULL, density = F,
-  dge_reference = dge)
+  dge_reference = dge, ...)
 }
 \arguments{
 \item{dge}{Seurat object}
@@ -21,10 +21,7 @@ for gene2). See ?get_similar_genes. If TRUE, plot the sum of only the genes give
 \item{return_val}{If "all", returns a list with several internal calculations revealed.
 If "plot", returns just a ggplot object. If "seurat", returns a Seurat object with gene scores added.}
 
-\item{num_genes_add}{Each axis shows a simple sum of similar genes. This is how many (before removing overlap). Integer.
-
-This function is based on a simple scheme: choose genes similar to the ones specified 
-and average them to get past the noise.}
+\item{num_genes_add}{Each axis shows a simple sum of similar genes. This is how many (before removing overlap). Integer.}
 
 \item{cutoffs}{If given, divide plot into four quadrants and annotate with percentages. Numeric vector of length 2.}
 
@@ -33,6 +30,11 @@ and average them to get past the noise.}
 \item{dge_reference}{Seurat object. This function relies on gene-gene correlation. If your dataset is perturbed in a way 
 that would substantially alter gene-gene correlations, for example if different time points are present or certain 
 cell types are mostly depleted, you can feed in a reference dge, and TACS will choose axes based on the reference data.}
+
+\item{...}{Extra params for stat_density2d.
+
+This function is based on a simple scheme: choose genes similar to the ones specified 
+and average them to get past the noise.}
 }
 \description{
 Make a FACS-like plot from a single-cell rna-seq dataset.

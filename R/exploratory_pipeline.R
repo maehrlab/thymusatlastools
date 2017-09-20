@@ -121,6 +121,10 @@ save_complexity_plot = function(dge, result_path){
 
 ## ------------------------------------------------------------------------
 
+#' Decide if a gene is a ribosomal subunit or a pre-rRNA transcript.
+#'
+#' @export
+#'
 is_rp = function( genes ){
   genes %<>% toupper
   p1 = (genes == "RN45S")
@@ -171,10 +175,10 @@ add_cc_score = function(dge, method = "average"){
   geneset = as.list(phases); names(geneset) = phases
   for( phase in phases ){
     human_ortho = c()
+    try(dge %<>% add_maehrlab_metadata("species"))
     if ( !"species" %in% AvailableData( dge ) ){
-      warning(paste("No species metadata present. Assuming mouse, but please add species metadata.", 
-                    "Try `object = add_maerhlab_metadata(object, 'species')` with `add_maerhlab_metadata`",
-                    "from either of the packages `thymusatlasdataprivate` or `thymusatlasdatapublic`." ) )
+      warning(paste("No species metadata present. Assuming mouse, but please add species metadata.\n", 
+                    "Try `object = add_maerhlab_metadata(object, 'species')`.\n" ) )
     } else if( any( Seurat::FetchData(dge, "species")[[1]] == "human" ) ){
       human_ortho = unlist( lapply( X = macosko_cell_cycle_genes[, phase], 
                                     FUN = get_ortholog, from = "human", to = "mouse" ) )
@@ -758,7 +762,10 @@ get_similar_genes = function( dge, markers, n, anticorr = F ){
 }
 
 ## ------------------------------------------------------------------------
+#' Programmatically feed gene-sets to Enrichr and save formatted results.
+#'
 #' @export
+#'
 do_enrichr = function( results_path, geneset, geneset_name, 
                        desired_db = c( "KEGG_2016", 
                                        "WikiPathways_2016",

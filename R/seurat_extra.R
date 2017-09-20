@@ -241,14 +241,16 @@ SanitizeGenes = function( dge ){
 #' @param gene2 Vertical axis on plot mimics this gene. Character, usually length 1 but possibly longer. 
 #' @param genesets_predetermined If FALSE, plot the sum of many genes similar to gene1 instead of gene1 alone (same 
 #' for gene2). See ?get_similar_genes. If TRUE, plot the sum of only the genes given.
-#' @param dge_reference Seurat object. This function relies on gene-gene correlation. If your dataset is perturbed in a way 
-#' that would substantially alter gene-gene correlations, for example if different time points are present or certain 
-#' cell types are mostly depleted, you can feed in a reference dge, and TACS will choose axes based on the reference data.
+#' @param num_genes_add Each axis shows a simple sum of similar genes. This is how many (before removing overlap). Integer.
 #' @param return_val If "all", returns a list with several internal calculations revealed.
 #' If "plot", returns just a ggplot object. If "seurat", returns a Seurat object with gene scores added. 
 #' @param cutoffs If given, divide plot into four quadrants and annotate with percentages. Numeric vector of length 2.
+#' @param dge_reference Seurat object. This function relies on gene-gene correlation. If your dataset is perturbed in a way 
+#' that would substantially alter gene-gene correlations, for example if different time points are present or certain 
+#' cell types are mostly depleted, you can feed in a reference dge, and TACS will choose axes based on the reference data.
+
 #' @param density If TRUE, plot contours instead of points.
-#' @param num_genes_add Each axis shows a simple sum of similar genes. This is how many (before removing overlap). Integer.
+#' @param ... Extra params for stat_density2d.
 #'
 #' This function is based on a simple scheme: choose genes similar to the ones specified 
 #' and average them to get past the noise. 
@@ -257,7 +259,9 @@ SanitizeGenes = function( dge ){
 #'
 TACS = function( dge, gene1, gene2, genesets_predetermined = F, 
                  return_val = "plot", 
-                 num_genes_add = 100, facet_by = NULL, cutoffs = NULL, density = F, dge_reference = dge ){
+                 num_genes_add = 100, facet_by = NULL, cutoffs = NULL, 
+                 density = F,
+                 dge_reference = dge, ... ){
   
   # Get gene sets to average
   if(genesets_predetermined){
@@ -286,7 +290,7 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
   # Form plot
   p = ggplot(plot_df) 
   if(density){ 
-    p = p + geom_bin2d( aes_string( x=g1_score_name, y=g2_score_name, fill = "..density.." ) ) + 
+    p = p + stat_density2d( aes_string( x=g1_score_name, y=g2_score_name, ... ) ) + 
       scale_fill_gradient2(low = "white", high = "black" ) 
   } else {
     p = p + geom_point( aes_string( x=g1_score_name, y=g2_score_name ) ) 

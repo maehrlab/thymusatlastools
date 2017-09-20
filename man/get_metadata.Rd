@@ -4,7 +4,7 @@
 \alias{get_metadata}
 \title{Get metadata from the thymusatlasdataprivate or thymusatlasdatapublic packages.}
 \usage{
-get_metadata()
+get_metadata(..., verbose = F)
 }
 \description{
 If you have both installed, thymusatlasdataprivate is preferred.

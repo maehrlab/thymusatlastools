@@ -11,7 +11,8 @@ add_maehrlab_metadata(dge, variable_to_add, new_name = NULL,
 Given a Seurat object, add information about our experiments.
 }
 \details{
-It looks in `maehrlab_metadata` for a column named `variable_to_add` and adds that to @data.info with the 
+It looks in `get_metadata()` for a column named `variable_to_add` and adds 
+that variable to @data.info with the 
 name `new_name` (default is `variable_to_add`).
-It relies on being able to match "Sample_ID" to "orig.ident".
+It finds the right cells by matching "Sample_ID" to "orig.ident".
 }
