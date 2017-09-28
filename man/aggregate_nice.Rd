@@ -11,6 +11,6 @@ Aggregate data.frame by a categorical variable, permissively.
 }
 \details{
 A wrapper for aggregate(). Accepts atomic "by" argument.
-Guaranteed to return a matrix. Also returns the aggregation levels in the rownames
+Guaranteed to return a matrix. Also returns the aggregation levels in the rownames 
 instead of adding a column for them.
 }

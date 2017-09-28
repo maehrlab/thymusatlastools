@@ -121,13 +121,19 @@ SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NUL
     apply(2, percentify) %>% 
     melt %>% 
     plyr::rename(c("value" = "percent")) 
-  X[[facet_by]] %<>% as.character
+  # Restore factor levels after table call
+  facet_values = FetchData( dge, facet_by )[[1]]
+  if(is.factor(facet_values)){
+    X[[facet_by]] %<>% factor(levels = levels(facet_values), ordered = T)
+  } 
+  # Position percentages decently
   X$at = 0
   X = X[order(X[[ident.use]]), ]
   for(facet_level in unique(X[[facet_by]])){
     idx = (X[[facet_by]] == facet_level)
     X[idx, "at"] = 100 - ( cumsum(X[idx, "percent"]) - X[idx, "percent"]/2 )
   }
+  # Pie charts require stat=identity and x=constant
   p = ggplot(X) + ggtitle( main) + 
     geom_bar( aes_string( y = "percent", x = "factor('')", fill = ident.use ), position = "stack", stat='identity' ) + 
     coord_polar(theta = "y") + xlab("") + ylab("") + 
@@ -163,6 +169,13 @@ FindMarkersFlex = function( object,
                             test.use = "binomial_batch",
                             genes.use = object@data %>% rownames,
                             min.pct = 0.1, ... ){
+  # This chunk handles ident.1 or .2 of length greater than 1.
+  new_ident = object@ident %>% as.character
+  new_ident[new_ident %in% ident.1] = paste0(ident.1, collapse = "_")
+  new_ident[new_ident %in% ident.2] = paste0(ident.2, collapse = "_")
+  ident.1 = paste0(ident.1, collapse = "_")
+  ident.2 = paste0(ident.2, collapse = "_")
+  object %<>% SetIdent(ident.use = new_ident)
   
   genes.use %<>% intersect(AvailableData(object))
   object %<>% Seurat::SetIdent( ident.use = as.character(FetchData( object, ident.use )[[1]]) )
@@ -290,8 +303,9 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
   # Form plot
   p = ggplot(plot_df) 
   if(density){ 
-    p = p + stat_density2d( aes_string( x=g1_score_name, y=g2_score_name, ... ) ) + 
-      scale_fill_gradient2(low = "white", high = "black" ) 
+    p = p + stat_density2d( aes_string( x = g1_score_name, y = g2_score_name, 
+                                        colour = facet_by, alpha = "..level.." ), bins = 50 ) +
+      scale_alpha_continuous( range = c(0.4, 1) )
   } else {
     p = p + geom_point( aes_string( x=g1_score_name, y=g2_score_name ) ) 
   }
@@ -308,9 +322,7 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
                          g2_score_name = g2_score_name, 
                          cutoffs = cutoffs,
                          facet_by = facet_by)
-  } else {
-    percentages = NULL
-  }
+  } 
   
   # Return everything or just a plot or just a seurat object
   if( return_val == "all" ){
@@ -320,8 +332,7 @@ TACS = function( dge, gene1, gene2, genesets_predetermined = F,
                   score_names = c( g1_score_name, g2_score_name ), 
                   genesets = list( g1_similar, g2_similar ),
                   cutoffs = cutoffs,
-                  plot_df = plot_df,
-                  percentages = percentages ) )
+                  plot_df = plot_df ) )
   } else if( return_val == "seurat" ){
     return(dge)
   } else if( return_val == "plot" ){

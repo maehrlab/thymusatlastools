@@ -17,9 +17,9 @@ Return its preimage as a named list of vectors.
 If `detailed_output`, returns a list with named elements:
   - `preimage`: a list where each name is an output (a value of `map`)
       and each element is a vector of all inputs leading to that output.
-  - `output_occurs_multiple`: a named list or vector subsetted from `map`
+  - `output_occurs_multiple`: a named list or vector subsetted from `map` 
       where each element occurs more than once.
-  - `output_occurs_once`: a named list or vector subsetted from `map` where
+  - `output_occurs_once`: a named list or vector subsetted from `map` where 
       each element occurs once.
 Otherwise, it returns just the preimage.
 }

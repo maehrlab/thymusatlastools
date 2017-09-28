@@ -4,8 +4,8 @@
 \alias{faceted_tsne}
 \title{Plot a dataset's tSNE embedding faceted by experimental metadata (default replicate and eday).}
 \usage{
-faceted_tsne(dge, results_path, ident.use = "orig.ident", eday.use = "eday",
-  colour = "eday", width = 20, height = 12)
+faceted_tsne(dge, results_path, inner_factor = "orig.ident",
+  outer_factor = "eday", colour = outer_factor, width = 20, height = 12)
 }
 \description{
 Plot a dataset's tSNE embedding faceted by experimental metadata (default replicate and eday).

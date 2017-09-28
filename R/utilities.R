@@ -17,13 +17,13 @@ library(cluster)
 library(mgcv)
 library(destiny)
 assertthat::assert_that( packageVersion("destiny") >= "2")
-if( packageVersion("ggplot2") < "2.2.1.9000" ) {
-  warning("You may need the development version of ggplot2 if you want the
+if( packageVersion("ggplot2") < "2.2.1.9000" ) { 
+  warning("You may need the development version of ggplot2 if you want the 
           `overplot_adjust=T` option in `custom_feature_plot` to work.")
 }
 
 #' Return df with handpicked genes.
-#'
+#' 
 #'@export
 get_rene_markers = function(){
   data(handpicked_markers)
@@ -81,15 +81,15 @@ get_ortholog_table = function(){
 CC_PHASES = c("IG1.S", "S", "G2.M", "M", "M.G1")
 black_white = c( colorspace::sequential_hcl( 30, h = 0,   c. = c(0, 0),     l = c( 0, 100  ) ) )
 blue_gray_red  = colorspace::diverge_hcl   ( 30,          c = 180,          l = c( 40, 80  ) )
-blue_purple_red = colorRampPalette(c("blue", "red"))(30)
+blue_purple_red = colorRampPalette(c("blue", "red"))(30) 
 yellow_red  = c( colorspace::sequential_hcl( 18, h = 60,  c. = c(100, 100), l = c( 100, 80 ) ),
                  colorspace::sequential_hcl( 12, h = 0,   c. = c(100, 160), l = c( 80, 40  ) ) )
-blue_yellow = c( colorspace::sequential_hcl( 15, h = 260, c. = c(50, 0),    l = c( 13, 65 ) ),
+blue_yellow = c( colorspace::sequential_hcl( 15, h = 260, c. = c(50, 0),    l = c( 13, 65 ) ), 
                  colorspace::sequential_hcl( 15, h = 40,  c. = c(0, 80),    l = c( 65, 95 ) ) )
 Thanksgiving_colors = c("yellow", "orange", "red", "brown")
 
 ## ------------------------------------------------------------------------
-
+  
 atat = function(my_ass) (assertthat::assert_that(my_ass))
 atae = function(x, y, ...) (assertthat::are_equal(x, y, ...))
 
@@ -104,21 +104,21 @@ atae = function(x, y, ...) (assertthat::are_equal(x, y, ...))
 #' @return Prints and returns a ggplot object.
 #' @export
 outlier_labeled_scatterplot = function( data, main = "", prop_label = 0.02 ){
-
+  
   # sanitize input
   if(any(is.na(data))){
     cc = complete.cases( data )
     warning(c("Removing ", sum(1-cc), " rows with missing data."))
     data = data[cc, ]
   }
-
-  cc = is.finite(data[, 1]) & is.finite(data[, 1])
+  
+  cc = is.finite(data[, 1]) & is.finite(data[, 1]) 
   if(any(!cc)){
     warning(c("Removing ", sum(1-cc), " rows with NaN, Inf, or -Inf."))
     data = data[cc, ]
   }
 
-
+  
   x = names(data)[[1]]
   y = names(data)[[2]]
   label = names(data)[[3]]
@@ -127,7 +127,7 @@ outlier_labeled_scatterplot = function( data, main = "", prop_label = 0.02 ){
   data$dist_to_nn = rowSums( FNN::get.knn( data = apply(X = data[ , 1:2 ], MARGIN = 2, FUN = div_by_max ),
                                            k=3, algorithm=c( "cover_tree" ) )$nn.dist )
   data$should_label = data$dist_to_nn > quantile( data$dist_to_nn, probs = (1 - prop_label))
-
+  
   p = ggplot() + ggtitle( main ) +
     geom_text(  data = subset( data,  should_label ),
                 aes_string( x = x, y = y, colour = colour, label = label ) ) +
@@ -147,34 +147,34 @@ flip_table = function(X) X[nrow(X):1, ]
 #'
 save_marker_table = function(X, results_path, testname, remove_rp = FALSE, add_to_inventory = FALSE ){
   atae(names(X), c("gene", "avg_diff", "pct.1", "pct.2", "p.value", "q.value" ) )
-  if(remove_rp) X %<>% subset( !is_rp(gene) )
-
+  if(remove_rp) X %<>% subset( !is_rp(gene) ) 
+  
   # Only Phred-scale qvals
   X$`-log10q` = X$q.value %>% log10 %>% multiply_by(-1)
   X$p.value = NULL
   X$q.value = NULL
-
+  
   # Round stuff
   X$avg_diff %<>% round(2)
   X$pct.1 %<>% round(2)
   X$pct.2 %<>% round(2)
   X$`-log10q` %<>% round(2)
-
+  
   # Print to files
   f_up = file.path(results_path, paste0( testname, "_up.txt" ) )
   f_dn = file.path(results_path, paste0( testname, "_dn.txt" ) )
-  X %>% subset( avg_diff > 0 )  %>%
-    write.table( f_up, quote = F, col.names = T, row.names = F)
+  X %>% subset( avg_diff > 0 )  %>% 
+    write.table( f_up, quote = F, col.names = T, row.names = F) 
   X %>% subset(avg_diff < 0 ) %>%  flip_table %>%
-    write.table( f_dn, quote = F, col.names = T, row.names = F)
-
+    write.table( f_dn, quote = F, col.names = T, row.names = F) 
+  
   # Add to freezr inventory
   if( add_to_inventory ){
-    freezr::inventory_add( tag = paste0( "de_genes_", testname, "_up" ),
-                           filename = f_up,
+    freezr::inventory_add( tag = paste0( "de_genes_", testname, "_up" ), 
+                           filename = f_up, 
                            force = T )
-    freezr::inventory_add( tag = paste0( "de_genes_", testname, "_dn" ),
-                           filename = f_dn,
+    freezr::inventory_add( tag = paste0( "de_genes_", testname, "_dn" ), 
+                           filename = f_dn, 
                            force = T )
   }
 }
@@ -186,9 +186,9 @@ nnz = function(x)(sum(x>0))
 prop_nz = function(x)( nnz(x) / length(x))
 
 #' @export
-div_by_max = function( x ){ if( max(x) == 0) 0*x else x / max( x ) }
+div_by_max = function( x ){ if( max(x) == 0) 0*x else x / max( x ) } 
 #' @export
-div_by_sum = function( x ){ if( sum(x) == 0) 0*x else x / sum( x ) }
+div_by_sum = function( x ){ if( sum(x) == 0) 0*x else x / sum( x ) } 
 #' @export
 percentify = function( x ){ return( 100*round( div_by_sum( x ), 3 ) ) }
 #' @export
@@ -204,26 +204,6 @@ standardize = function( x, nonpar = F ){
   return( z )
 }
 
-# # Given a matrix, scatterplots all pairs of columns.
-#' @export
-plot_pairs = function( X, main = "" ){
-  D = ncol( X )
-  for( ii in 1:D ){
-    for( jj in 1:ii ){
-      # linear_index = (ii - 1)*D + jj
-      if( ii == jj ){
-        # could do histogram here, but I don't want to
-      } else {
-        Y = data.frame( X[[ii]], X[[jj]], rownames( X ) )
-        colnames( Y ) = c( colnames( X )[ c(ii, jj) ], "gene" )
-        r = cor(Y[, 1], Y[, 2])
-        p =  ggplot( Y ) + ggtitle( paste0( main, " (r = ", round(r, 2), ")" ) ) +
-          geom_point( aes_string( x = colnames(Y)[[1]], y = colnames(Y)[[2]] ))
-        print( p )
-      }
-    }
-  }
-}
 
 #' @export
 matrixify_preserving_rownames = function(x) matrix( x,  ncol = 1, dimnames = list( names( x  ), "") )
@@ -249,19 +229,19 @@ top_n_preserve_rownames = function( x, ...){
   return(y)
 }
 # Make sure an adversarial case -- temp column name already taken -- works out ok
-atat( all.equal(  top_n_preserve_rownames(x = data.frame(rownames_tempcol = 10:6), 3, rownames_tempcol),
+atat( all.equal(  top_n_preserve_rownames(x = data.frame(rownames_tempcol = 10:6), 3, rownames_tempcol), 
                   data.frame(rownames_tempcol = 10:8) ) )
 
 #' Aggregate data.frame by a categorical variable, permissively.
 #'
 #' @details A wrapper for aggregate(). Accepts atomic "by" argument.
-#' Guaranteed to return a matrix. Also returns the aggregation levels in the rownames
+#' Guaranteed to return a matrix. Also returns the aggregation levels in the rownames 
 #' instead of adding a column for them.
 #' @export
 aggregate_nice = function(x, by, FUN, ... ) {
   if( typeof( by ) != "list" ){
     by = list ( by )
-  }
+  } 
   right_type = ( is.atomic(x) | typeof( x ) %in% c( "matrix", "dataframe" ) )
   if( !right_type ){
     x = as.matrix( x )
@@ -274,7 +254,7 @@ aggregate_nice = function(x, by, FUN, ... ) {
 
 
 #' Convert a, b, b, a, c, a to 1, 2, 2, 1, 3, 1. Works with any strings alphabetically.
-#'
+#' 
 #' @export
 replace_with_int_rank = function(x) as.numeric( as.factor( x ) )
 
@@ -287,7 +267,7 @@ na2zero = function(df){
 #' @export
 Capitalize = function(s) {paste0(toupper( substring( s, 1, 1 ) ), tolower( substring( s, 2 ) ) )}
 
-#' Turn a named list or vector of strings into a
+#' Turn a named list or vector of strings into a 
 #' pipe-separated key-value format: "<name1>=<value1>|<name2>=<value2>|..."
 #'
 #' @export
@@ -357,9 +337,9 @@ split_path = function(path) {
 #' @details If `detailed_output`, returns a list with named elements:
 #'   - `preimage`: a list where each name is an output (a value of `map`)
 #'       and each element is a vector of all inputs leading to that output.
-#'   - `output_occurs_multiple`: a named list or vector subsetted from `map`
+#'   - `output_occurs_multiple`: a named list or vector subsetted from `map` 
 #'       where each element occurs more than once.
-#'   - `output_occurs_once`: a named list or vector subsetted from `map` where
+#'   - `output_occurs_once`: a named list or vector subsetted from `map` where 
 #'       each element occurs once.
 #' Otherwise, it returns just the preimage.
 #' @export
@@ -368,12 +348,12 @@ get_preimage = function( map, detailed_output = F ){
   # # Preallocate. Empty lists are treacherous bastards, so fill in NA's at first.
   range_of_map = unique( map )
   preimage = setNames( as.list( rep(NA, length( range_of_map ) ) ), nm = range_of_map )
-
+  
   # # Save CPU time by setting the easy ones wholesale
   output_occurs_multiple = map[ map %in% map[ duplicated( map ) ] ] # mappity map map map
   output_occurs_once     = map[ !( map %in% output_occurs_multiple ) ] # map map
   preimage[ output_occurs_once ] = names( output_occurs_once )
-
+  
   # # Fill in fibers
   for( input in names( output_occurs_multiple ) ){
     preimage[[ map[[ input ]]  ]] = c( preimage[[ map[[ input ]]  ]], input )
@@ -381,11 +361,11 @@ get_preimage = function( map, detailed_output = F ){
   # # Clean up NA's one by one
   remove_NA = function( x ){ x[!is.na(x)] }
   preimage = lapply( preimage, FUN = remove_NA )
-  atae( length( output_occurs_once ),
+  atae( length( output_occurs_once ), 
         length( unique( output_occurs_once ) ) )
   if(!detailed_output){ return( preimage ) }
-  return( list( preimage = preimage,
-                output_occurs_multiple = output_occurs_multiple,
+  return( list( preimage = preimage, 
+                output_occurs_multiple = output_occurs_multiple, 
                 output_occurs_once = output_occurs_once ) )
 }
 
@@ -393,7 +373,7 @@ get_preimage = function( map, detailed_output = F ){
 ## ------------------------------------------------------------------------
 # # Set up data on human-mouse orthologs
 ortholog_table = get_ortholog_table()
-# # Hash tables for fast access
+# # Hash tables for fast access 
 human_dupes = duplicated( ortholog_table$humansym )
 mouse_dupes = duplicated( ortholog_table$mousesym )
 h2m = setNames( ortholog_table$mousesym, nm = ortholog_table$humansym )[!human_dupes]
@@ -429,13 +409,13 @@ has_ortholog = function( ... ){ !is.na( get_ortholog( ..., try_caps = FALSE ) ) 
 
 #' Convert a raw digital gene expression matrix from one species to another.
 #'
-#' @details If two genes have the same ortholog, the molecule counts get added.
+#'@details If two genes have the same ortholog, the molecule counts get added.
 #' If a gene has no ortholog, it is omitted.
 #' The input must be a matrix with genes stored in rownames( raw_dge ).
 #' @export
 convert_species_dge = function( raw_dge, from = "human", to = "mouse"){
   cat( paste( "Converting to", to, "...\n" ) )
-  genes = rownames(raw_dge)
+  genes = rownames(raw_dge) 
   eligible_genes = genes[ has_ortholog( genes, from, to ) ]
   genes_by_ortholog = eligible_genes %>% get_ortholog( ., from, to ) %>% get_preimage
   raw_dge_converted = matrix( 0, nrow = length( genes_by_ortholog ), ncol = ncol( raw_dge ) )
@@ -456,7 +436,7 @@ harmonize_species = function( gene_list, dge ){
     warning( paste( "Please add a `species` field to the metadata containing 'human', 'mouse', or some of each.\n",
                     "Attempting to add species for you via `add_maehrlab_metadata( dge, 'species' )`.") )
     dge = add_maehrlab_metadata( dge, "species" )
-  }
+  } 
   has_human = "human" %in% FetchData(dge, "species")[[ "species" ]]
   has_mouse = "mouse" %in% FetchData(dge, "species")[[ "species" ]]
   if( has_human ){
@@ -476,13 +456,13 @@ harmonize_species = function( gene_list, dge ){
 #' Also removes genes where the proportion in one species is higher by 0.5 than the other.
 #' @export
 remove_species_specific_genes = function( dge, results_path, threshold = 0.003, diff_thresh = 0.5 ){
-
-  proportions_by_species = aggregate_nice( x   = as.matrix( t( dge@data > 0 ) ),
-                                           by  = dge@data.info$species ,
+  
+  proportions_by_species = aggregate_nice( x   = as.matrix( t( dge@data > 0 ) ), 
+                                           by  = dge@data.info$species , 
                                            FUN = mean )
   min_proportions_by_species = sapply( X = proportions_by_species, FUN = min)
   max_proportions_by_species = sapply( X = proportions_by_species, FUN = max)
-
+  
   plot_df = as.data.frame( t( proportions_by_species ) ); names ( plot_df ) = rownames( proportions_by_species )
   plot_df$gene = rownames( plot_df )
   plot_df$diff_big = ( max_proportions_by_species - min_proportions_by_species > diff_thresh )
@@ -491,7 +471,7 @@ remove_species_specific_genes = function( dge, results_path, threshold = 0.003, 
 
   pdf( file.path( results_path, "min_proportions_by_species.pdf" ) )
   {
-    hist( unlist( min_proportions_by_species[min_proportions_by_species < 10*threshold ] ),
+    hist( unlist( min_proportions_by_species[min_proportions_by_species < 10*threshold ] ), 
           main = "Min proportions truncated at 10*threshold",
           xlab = "Proportion in mouse or human (whichever is lower)")
     p = ggplot() + ggtitle("Proportion of cells expressing each gene") +
@@ -499,13 +479,13 @@ remove_species_specific_genes = function( dge, results_path, threshold = 0.003, 
                   aes_string( x = names ( plot_df )[1],
                               y = names ( plot_df )[2],
                               colour = "excluded" ) ) +
-      geom_text( data = subset( plot_df, diff_big & !absent_in_one ),
+      geom_text( data = subset( plot_df, diff_big & !absent_in_one ), 
                  aes_string( x = names ( plot_df )[1],
                              y = names ( plot_df )[2],
-                             label = "gene",
+                             label = "gene", 
                              colour = "excluded" ) )
     print( p )
-  }
+  } 
   dev.off()
 
   passing_genes = plot_df$gene[ !plot_df$excluded ]

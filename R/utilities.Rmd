@@ -219,26 +219,6 @@ standardize = function( x, nonpar = F ){
   return( z )
 }
 
-# # Given a matrix, scatterplots all pairs of columns.
-#' @export
-plot_pairs = function( X, main = "" ){
-  D = ncol( X )
-  for( ii in 1:D ){
-    for( jj in 1:ii ){
-      # linear_index = (ii - 1)*D + jj
-      if( ii == jj ){
-        # could do histogram here, but I don't want to
-      } else {
-        Y = data.frame( X[[ii]], X[[jj]], rownames( X ) )
-        colnames( Y ) = c( colnames( X )[ c(ii, jj) ], "gene" )
-        r = cor(Y[, 1], Y[, 2])
-        p =  ggplot( Y ) + ggtitle( paste0( main, " (r = ", round(r, 2), ")" ) ) + 
-          geom_point( aes_string( x = colnames(Y)[[1]], y = colnames(Y)[[2]] )) 
-        print( p ) 
-      }
-    }
-  }
-}
 
 #' @export
 matrixify_preserving_rownames = function(x) matrix( x,  ncol = 1, dimnames = list( names( x  ), "") )

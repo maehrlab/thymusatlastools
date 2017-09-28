@@ -282,6 +282,39 @@ top_genes_by_pc = function(dge, results_path, test_mode, num_pc = 30){
 ###Clustering
 
 ```{r}
+#' Apply a bagged clustering procedure to a Seurat object using PCA as input.
+#'
+#' @export
+#' 
+ClusterBag = function(dge, k, num_pc = 25, my_seed = 100){
+  set.seed(my_seed)
+  cl_obj = clue::cl_bag( dge@pca.rot[1:num_pc], B = 100, k = k ) 
+  memberships = as.data.frame( cl_obj$.Data[,] )
+  colnames(memberships) = paste0("cl_bag_", 1:ncol(memberships))
+  rownames(memberships) = rownames(dge@data.info)
+  assignment = apply(memberships, 1, which.max)
+  confidence = apply(memberships, 1, max)
+  memberships$cl_bag_assignment = paste0("cl_bag_", assignment)
+  memberships$cl_bag_confidence = confidence
+  dge %<>% AddMetaData( memberships )
+  return(dge)
+}
+
+#' Wrapper for ClusterBag. Measures stability over a range of model sizes.
+#'
+#' @export
+#'
+ClusterBagStability = function( dge, k_max = 15, ... ){
+  kvals = 2:k_max
+  stability = kvals
+  for( k in kvals ){
+    dge = ClusterBag( dge, k, ...)
+    stability[k - 1] = mean(FetchData(dge, "cl_bag_confidence")[[1]])
+  }
+  plot(kvals, stability)
+  return( data.frame(k = kvals, stability = stability) )
+}
+
 #' A wrapper for Seurat's clustering functions.
 #' 
 #' @param method is either "DBSCAN" or "SNN".
@@ -816,7 +849,7 @@ do_enrichr = function( results_path, geneset, geneset_name,
   
   # # Get enrichr results and parse them
   output_table = enrichR::enrichr( genes = geneset, databases = desired_db ) 
-  output_table %<>% mapply(desired_db, FUN = function(X, db) {X$database = db; return(X)}, SIMPLIFY = F)
+  output_table %<>% mapply(desired_db, FUN = function(X, db) {try({X$database = db}); return(X)}, SIMPLIFY = F)
   output_table %<>% Reduce( f=rbind )
   output_table %<>% group_by( database ) %>% top_n( wt = -P.value, n = N_ANNOT_PER_DB) %>% as.data.frame
   output_table %<>% mutate( log10_qval = round( log10( Adjusted.P.value ), 1 ) )
@@ -832,14 +865,17 @@ do_enrichr = function( results_path, geneset, geneset_name,
                sep = "\t", quote = F, row.names = F, col.names = F )
  
   # # Save pretty version
-  output_table$Genes  = NULL
-  n_colors = length(unique(output_table$database)); 
-  color_idx = output_table$database %>% factor(levels = desired_db, ordered = T) %>% as.integer
+  pretty_table = output_table
+  pretty_table$Genes  = NULL
+  n_colors = length(unique(pretty_table$database)); 
+  color_idx = pretty_table$database %>% factor(levels = desired_db, ordered = T) %>% as.integer
   my_cols = scales::hue_pal()(n_colors)[ color_idx ]
   theme_color_db = ttheme_minimal( core=list( bg_params = list( fill = my_cols ) ) )
-  ggsave( tableGrob( d = output_table, theme = theme_color_db ), 
+  ggsave( tableGrob( d = pretty_table, theme = theme_color_db ), 
           file = file.path( my_rp, "color=database.pdf" ), 
           width = 15, height = N_ANNOT_PER_DB*length(desired_db) / 3, limitsize = F )
+  
+  return(output_table)
 }
 ```
 
@@ -1363,7 +1399,7 @@ explore_embeddings = function(dge, results_path, all_params, test_mode = F){
       # save_heatmap(dge, results_path = rp_mini, marker_info = de_genes,    main = "heatmap_all_de_genes")
       save_heatmap(dge, results_path = rp_mini, marker_info = top_markers, main = "heatmap_top_markers")
     }
-    save_feature_plots(dge, results_path = rp_mini)
+    #save_feature_plots(dge, results_path = rp_mini)
     pavg = param_row[["plot_all_var_genes"]]
     if( !is.null( pavg ) && pavg  ){
       save_feature_plots(dge, results_path = rp_mini, gene_list = dge@var.genes, gene_list_name = "var_genes")
