@@ -7,19 +7,8 @@
 
 PATH_TO_TABLES = file.path( "tables" ) 
 
-#' @import enrichR 
-#' @import grid 
-#' @import gridExtra 
-#' @import colorspace 
 #' @import Seurat 
 #' @import ggplot2 
-#' @import reshape2 
-#' @import dplyr 
-#' @import reshape 
-#' @import monocle 
-#' @import hexbin 
-#' @import cluster 
-#' @import mgcv 
 #' @import magrittr
 
 assertthat::assert_that( packageVersion("destiny") >= "2")

@@ -1,27 +1,5 @@
 ## ------------------------------------------------------------------------
 
-
-library(enrichR)
-library(grid)
-library(gridExtra)
-library(colorspace)
-library(Seurat)
-library(ggplot2)
-library(reshape2)
-library(dplyr)
-library(magrittr)
-library(reshape)
-library(monocle)
-library(hexbin)
-library(cluster)
-library(mgcv)
-library(destiny)
-assertthat::assert_that( packageVersion("destiny") >= "2")
-if( packageVersion("ggplot2") < "2.2.1.9000" ) { 
-  warning("You may need the development version of ggplot2 if you want the 
-          `overplot_adjust=T` option in `custom_feature_plot` to work.")
-}
-
 #' Return df with handpicked genes.
 #' 
 #'@export
@@ -223,7 +201,7 @@ top_n_preserve_rownames = function( x, ...){
   if(is.null(rownames(x))){return(top_n(x, ...))}
   rownames_tempcol = make.unique( c( colnames( x ), "rownames_tempcol" ) ) %>% rev %>% down_idx
   x[[rownames_tempcol]] = attr(x, "row.names")
-  y = top_n(x, ...)
+  y = dplyr::top_n(x, ...)
   attr(y, "row.names") = y[[rownames_tempcol]]
   y[[rownames_tempcol]] = NULL
   return(y)

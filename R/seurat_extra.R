@@ -82,17 +82,23 @@ SubsetDataFlex = function( dge, vars.use, predicate, preserve_raw = FALSE ){
 SeuratMerge = function( dge1, dge2, preserve_ident = F, 
                         vars.keep = intersect(names(dge1@data.info), 
                                               names(dge2@data.info) ) ){
+  # Save on memory
+  dge1@scale.data = matrix()
+  dge2@scale.data = matrix()
+  gc()
+  
+  # Do merging
   dge_all = list( dge1 = deseuratify_raw_data( dge1 ), 
                   dge2 = deseuratify_raw_data( dge2 ) ) %>%
     dge_merge_list %>% seuratify_thy_data 
   characterize_factor = function(x){ if(is.factor(x)) as.character(x) else x }
   all_factors_to_char = function(X) data.frame(lapply(X, characterize_factor), stringsAsFactors=FALSE)
+  
   if( length(vars.keep) > 0 ){
     preserved_metadata = rbind( FetchDataZeroPad( dge1, vars.keep ) %>% all_factors_to_char, 
                                 FetchDataZeroPad( dge2, vars.keep ) %>% all_factors_to_char )
     preserved_metadata %<>% as.data.frame
     rownames(preserved_metadata) = c( rownames(dge1@data.info),rownames(dge2@data.info)) 
-    dge_all %<>% AddMetaData( preserved_metadata )     
   }
   
   if(preserve_ident){
@@ -101,6 +107,7 @@ SeuratMerge = function( dge1, dge2, preserve_ident = F,
     names(new_ident) = c(names(dge1@ident), names(dge2@ident))
     dge_all %<>% SetIdent(new_ident, cells.use = names(new_ident) )
   }
+  
   return(dge_all)
 }
 
@@ -112,18 +119,21 @@ SeuratMerge = function( dge1, dge2, preserve_ident = F,
 #' @param col Optional colorscale.
 #' @param label Logical. If TRUE, percentages are added.
 #' @param main Plot title.
+#' @param drop_levels If TRUE, omit facets that would be empty. 
 #'
 #' @export
 #'
-SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NULL, label = F, main = "Sample makeup by day" ){
+SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NULL, label = F, main = "Sample makeup by day", drop_levels = F ){
   X = FetchData( dge, c( ident.use, facet_by )) %>% 
     table %>% 
     apply(2, percentify) %>% 
-    melt %>% 
+    (reshape2::melt) %>% 
     plyr::rename(c("value" = "percent")) 
-  # Restore factor levels after table call
+  if( drop_levels ){
+    X %<>% subset( percent != 0 )
+  }
   facet_values = FetchData( dge, facet_by )[[1]]
-  if(is.factor(facet_values)){
+  if(is.factor(facet_values) & !drop_levels){
     X[[facet_by]] %<>% factor(levels = levels(facet_values), ordered = T)
   } 
   # Position percentages decently
@@ -169,19 +179,21 @@ FindMarkersFlex = function( object,
                             test.use = "binomial_batch",
                             genes.use = object@data %>% rownames,
                             min.pct = 0.1, ... ){
-  # This chunk handles ident.1 or .2 of length greater than 1.
-  new_ident = object@ident %>% as.character
+  # This chunk handles ident.1 or .2 of length greater than 1 by collapsing them both with underscores.
+  new_ident = FetchData( object, ident.use )[[1]] %>% as.character
+  names(new_ident) = names(object@ident)
   new_ident[new_ident %in% ident.1] = paste0(ident.1, collapse = "_")
   new_ident[new_ident %in% ident.2] = paste0(ident.2, collapse = "_")
   ident.1 = paste0(ident.1, collapse = "_")
   ident.2 = paste0(ident.2, collapse = "_")
-  object %<>% SetIdent(ident.use = new_ident)
-  
+  object %<>% AddMetaData(metadata = new_ident, col.name = ident.use)
+  # To interface with Seurat, the @ident slot gets overwritten with the groups for the expression test.
+  object %<>% Seurat::SetIdent(ident.use = new_ident)
+  # Slice the object down to just the relevant cells, to save time and reduce code complexity downstream.
+  predicate = paste0(ident.use, " %in% c( '", ident.1, "', '", paste0(ident.2, collapse = "', '"), "' )")
+  object %<>% SubsetDataFlex(vars.use = ident.use, predicate)
   genes.use %<>% intersect(AvailableData(object))
-  object %<>% Seurat::SetIdent( ident.use = as.character(FetchData( object, ident.use )[[1]]) )
-  predicate = paste0( ident.use, " %in% c( '", ident.1, "', '", paste0(ident.2, collapse = "', '"), "' )" )
-  object %<>% SubsetDataFlex( vars.use = ident.use, predicate )
-  if( test.use == "binomial_batch" ){
+  if (test.use == "binomial_batch") {
     cat(" \n Computing summaries... \n")
     x = data.frame( gene = genes.use, stringsAsFactors = F )
     rownames( x ) = x$gene
@@ -270,7 +282,7 @@ SanitizeGenes = function( dge ){
 #'
 #' @export 
 #'
-TACS = function( dge, gene1, gene2, genesets_predetermined = F, 
+ TACS = function( dge, gene1, gene2, genesets_predetermined = F, 
                  return_val = "plot", 
                  num_genes_add = 100, facet_by = NULL, cutoffs = NULL, 
                  density = F,
@@ -360,12 +372,12 @@ add_quadrants = function(p, g1_score_name, g2_score_name, cutoffs, facet_by = NU
   percentages = p$data[c(g1_score_name, g2_score_name, facet_by)]
   percentages[[g1_score_name]] %<>% is_greater_than(cutoffs[1])
   percentages[[g2_score_name]] %<>% is_greater_than(cutoffs[2])
-  percentages %<>% table %>% melt 
+  percentages %<>% table %>% (reshape2::melt)
   if(!is.null(facet_by)) {
     percentages = percentages[order(percentages[[facet_by]]), ]
-    for( facet_level in seq_along(unique(p$data[[facet_by]]))){
-      percentages$value[1:4 + 4*(facet_level-1)] %<>% percentify()
-    }
+    for( facet_level in unique(p$data[[facet_by]])){
+      percentages[percentages[[facet_by]] == facet_level, "value"] %<>% percentify()
+    } 
   } else {
     percentages$value %<>% percentify()
   }

@@ -132,12 +132,12 @@ deseuratify_raw_data = function( seurat_dge, retrieve_anew = F ){
   } else {
     raw_dge = load_thymus_profiling_data( sample_ids = unique( FetchData(seurat_dge, "orig.ident" )[[1]]) ) %>% dge_merge_list
   }
-  desired_genes = rownames( seurat_dge@scale.data )
+  desired_genes = rownames( seurat_dge@data )
   acceptable_genes = intersect( desired_genes, rownames( raw_dge ) )
   missing_genes    = setdiff(   desired_genes, rownames( raw_dge ) )
   raw_dge = as.matrix( raw_dge )[acceptable_genes, seurat_dge@cell.names]
   
-  ##Zero-pad to ensure all genes from scale.data are present
+  ##Zero-pad to ensure all genes from either @data slot are present
   my_zeroes = matrix( 0, ncol = ncol( raw_dge ), nrow = length( missing_genes ) )
   rownames( my_zeroes ) = missing_genes
   colnames( my_zeroes ) = colnames( raw_dge )

@@ -1,23 +1,6 @@
 
 ```{r}
 
-#' Using predefined genesets, form simple scores summarizing cTEC and mTEC transcriptomic signatures.
-#' 
-#' @param dge Seurat object
-#' @return results are added via `AddMetaData` using names "cTEC_signature", "mTEC_signature".
-#' 
-#' @details TEC = thymic epithelial cell; c = cortical; m = medullary
-#' @export
-add_cTEC_mTEC_signatures = function( dge ){
-  active_genes = get_cTEC_mTEC_genes()
-  cTEC_genes = active_genes %>% subset(., cluster == "cTEC", select = "gene", drop = T) 
-  mTEC_genes = active_genes %>% subset(., cluster == "mTEC", select = "gene", drop = T) 
-  signatures = data.frame( cTEC_signature =  FetchData(dge, vars.all = cTEC_genes) %>% rowMeans, 
-                           mTEC_signature =  FetchData(dge, vars.all = mTEC_genes) %>% rowMeans )
-  dge = AddMetaData( dge, signatures )
-  return( dge )
-}
-
 
 #' Remove intra-TEC doublets by finding cells with both a high cTEC signature and a high mTEC signature.
 #'

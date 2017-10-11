@@ -814,10 +814,10 @@ do_enrichr = function( results_path, geneset, geneset_name,
   
   # # Get enrichr results and parse them
   output_table = enrichR::enrichr( genes = geneset, databases = desired_db ) 
-  output_table %<>% mapply(desired_db, FUN = function(X, db) {try({X$database = db}); return(X)}, SIMPLIFY = F)
-  output_table %<>% Reduce( f=rbind )
-  output_table %<>% group_by( database ) %>% top_n( wt = -P.value, n = N_ANNOT_PER_DB) %>% as.data.frame
-  output_table %<>% mutate( log10_qval = round( log10( Adjusted.P.value ), 1 ) )
+  output_table %<>% (base::mapply)(desired_db, FUN = function(X, db) {try({X$database = db}); return(X)}, SIMPLIFY = F)
+  output_table %<>% (base::Reduce)( f=rbind )
+  output_table %<>% (dplyr::group_by)( database ) %>% (dplyr::top_n)( wt = -P.value, n = N_ANNOT_PER_DB) %>% as.data.frame
+  output_table %<>% (dplyr::mutate)( log10_qval = round( log10( Adjusted.P.value ), 1 ) )
   output_table = output_table[c("database", "Term", "Overlap", "log10_qval", "Genes")]
   
   # # Save raw table
@@ -835,8 +835,8 @@ do_enrichr = function( results_path, geneset, geneset_name,
   n_colors = length(unique(pretty_table$database)); 
   color_idx = pretty_table$database %>% factor(levels = desired_db, ordered = T) %>% as.integer
   my_cols = scales::hue_pal()(n_colors)[ color_idx ]
-  theme_color_db = ttheme_minimal( core=list( bg_params = list( fill = my_cols ) ) )
-  ggsave( tableGrob( d = pretty_table, theme = theme_color_db ), 
+  theme_color_db = gridExtra::ttheme_minimal( core=list( bg_params = list( fill = my_cols ) ) )
+  ggsave( gridExtra::tableGrob( d = pretty_table, theme = theme_color_db ), 
           file = file.path( my_rp, "color=database.pdf" ), 
           width = 15, height = N_ANNOT_PER_DB*length(desired_db) / 3, limitsize = F )
   
@@ -903,159 +903,6 @@ fix_cluster_order = function(  dge, marker_info, ident.use, desired_cluster_orde
   return( desired_cluster_order )
 }
 
-
-#' Returns a new ordering of the cells (a list of cell names).
-#' Cells will be ordered first by cluster and then (within clusters) by the sum of 
-#' the expression levels of that cluster's markers.
-#'
-#' @param marker_info dataframe containing variables `gene` and `cluster`.
-#' @param dge should be a Seurat object.
-#' @param ident.use tells you what variable to pull from the Seurat object.
-#' The first three args should be compatible according to `are_compatible()`.
-#' Also, `desired_cluster_order` should be a superset of `Seurat::FetchData(dge, vars.all = ident.use)[[1]]`.
-optimize_cell_order = function(dge, marker_info, ident.use, desired_cluster_order ){
-  # # Check inputs
-  atat( are_compatible( dge, marker_info, ident.use ) )
-  desired_cluster_order = fix_cluster_order( dge, marker_info, ident.use, desired_cluster_order )
-  # # Set up vector: gets sorted on values, but the item of interest is the resulting ordering of the names.
-  cluster_labels_orig = factor( as.character( Seurat::FetchData(dge, ident.use)[[1]]), 
-                                levels = desired_cluster_order, 
-                                ordered = T ) 
-  names( cluster_labels_orig ) = dge@cell.names
-  
-  # Put clusters together
-  # clcibcn means cluster_labels_contiguous_indexed_by_cell_names
-  clcibcn = sort(cluster_labels_orig)
-
-  # Rearrange each cluster by its top markers
-  for(cluster_id in unique( marker_info$cluster )){
-    this_cluster_idx =       ( clcibcn == cluster_id )
-    this_cluster_cells = names(clcibcn)[ this_cluster_idx ]
-    markers.use = marker_info$gene[marker_info$cluster == cluster_id]
-    if( sum( marker_info$cluster == cluster_id ) == 0){ next } # skip reordering if no markers available
-    new_cell_order = Seurat::FetchData(dge, 
-                                       vars.all = markers.use, 
-                                       cells.use = this_cluster_cells) %>% 
-      rowSums %>% sort %>% names
-    clcibcn[this_cluster_idx] = clcibcn[new_cell_order]
-  }
-  
-  # Make sure clusters are still together
-  assertthat::are_equal(sort(clcibcn), clcibcn)
-  return(names(clcibcn))
-}
-
-## ------------------------------------------------------------------------
-
-#' Set up a sparse axis with few labels for many x/y values
-#' Not an ideal interface (sorry!): for eight observations in groups of 5 and 3, 
-#' the `labels` input must be like c("", "", "lab1", "", "", "", "lab2", "").
-#' 
-sparse_axis = function(labels, side, ...){
-  for( i in seq_along( labels ) ){ 
-    if( "" != labels[i] )
-      axis(side = side, at = i / length( labels ), labels = labels[i], ... ) 
-    par(las = 2)
-  }
-}
-
-#' Save a big PDF file to `<results_path>/<main>.pdf` containing a heatmap of gene expression levels.
-#' 
-#' @param marker_info a dataframe containing variables `gene` and `cluster`.
-#' @param dge a Seurat object
-#' @param results_path should be a character such that `dir.exists( results_path )`
-#' @param desired_cluster_order: a superset of `levels(dge@ident)`
-#' @param do_key If `TRUE` a color legend gets added
-#' @param cs a vector of color names
-#' @param dendrogram If TRUE, a cell dendrogram is added. It is constrained to be compatible with `dge@ident`. The 
-#' implementation changes considerably. This feature is underdeveloped and other inputs -- especially `desired_cluster_order` -- may not work properly.
-#' @param test_mode If `TRUE`, use only 100 genes and 100 cells.
-#' @details Each column is a cell and each row is a gene. Each gene is rescaled so that its peak expression is 1.
-#' This facilitates comparison within genes and across cells, though it's bad for comparison across genes.
-#' @export
-save_heatmap = function( dge, results_path, marker_info, 
-                         desired_cluster_order = NULL,
-                         main = "heatmap",
-                         ident.use = "ident",
-                         do_key = F,  
-                         cs = blue_yellow, 
-                         dendrogram = F, 
-                         test_mode = F ){
-  if( do_key ){warning("Sorry, do_key is not implemented right now.")}
-  if( dendrogram ) atat(is.null(desired_cluster_order))
-  
-  # # Check inputs
-  atat( are_compatible( dge, marker_info, ident.use ) )
-  desired_cluster_order = fix_cluster_order( dge, marker_info, ident.use, desired_cluster_order )
-  
-  # reorder genes and set sparse column labels
-  marker_info$cluster = factor( as.character(marker_info$cluster), 
-                                   levels = desired_cluster_order, 
-                                   ordered = T)
-  marker_info = marker_info[order(marker_info$cluster), ]
-  gene_labels = rep("", length( marker_info$cluster ))
-  tmc = table( marker_info$cluster )
-  tmc = tmc[tmc > 0] # Don't want to include labels such as "doublets" if there are no corresponding markers.
-  non_blanks = round(cumsum(tmc) - tmc/2)+1
-  gene_labels[non_blanks] = names(tmc) 
-
-  # reorder cells and set sparse row labels
-  cell_order = optimize_cell_order( dge, marker_info = marker_info, ident.use = ident.use, 
-                                    desired_cluster_order = desired_cluster_order )
-  cell_clusters = Seurat::FetchData(dge, ident.use)[cell_order, 1] %>% as.character
-  cell_labels = rep("",length(cell_clusters))
-  tcc = table(cell_clusters)[desired_cluster_order]
-  tcc = tcc[tcc > 0] # Don't want to include labels such as "doublets" if there are no corresponding cells.
-  non_blanks = round(cumsum(tcc)-tcc/2)+1
-  cell_labels[non_blanks] = names(tcc) 
-  
-  # sweep out max expression level and set colorscale
-  norm_expr = t( apply(X = dge@data[marker_info$gene, cell_order], FUN = div_by_max, MARGIN = 1) )
-
-  if( test_mode ){
-    rand_idx = sample(1:min(dim(norm_expr)), size = 100, replace = F) %>% sort
-    cell_labels = cell_labels[rand_idx]
-    gene_labels = gene_labels[rand_idx]
-    norm_expr = norm_expr[rand_idx, rand_idx]
-    marker_info = marker_info[rand_idx, ]
-  }
-  
-  num_breaks = length(cs) + 1
-  max_num_clust = max( length(unique(marker_info$cluster)), length(unique(dge@ident)) )
-  # # diverging
-  categ_colors = colorspace::rainbow_hcl(n = max_num_clust)
-  # # alternating gray
-  # categ_colors = colorspace::sequential_hcl(n = 2, h = 0, c = 0, l = c(20, 80))[1 + mod(0:max_num_clust, 2)] 
-  # time to rock and roll!
-  names(categ_colors) = desired_cluster_order
-
-  print("Making heatmap...")
-  fname = paste0( main, ".pdf" )
-  pdf( file.path( results_path, fname ) )
-  {
-    if(!dendrogram){
-      image( z = t(norm_expr), col = cs, xaxt = "n", yaxt = "n", main = main, xlab = "Cells", ylab = "Genes" ) 
-      sparse_axis( labels = gene_labels, side = 2, tick = F )
-      sparse_axis( labels = cell_labels, side = 1, tick = F )
-      # # fields::image.plot is a good basic setup with color key, if you can ever get the damn thing working.
-    } else {
-      gplots::heatmap.2( norm_expr, 
-                         Rowv = F, 
-                         Colv = T, 
-                         dendrogram = "column",
-                         symm = F, 
-                         scale = "none", 
-                         col = blue_yellow,
-                         trace = "none",
-                         labCol = cell_labels, xlab = "Cells", 
-                         labRow = gene_labels, ylab = "Genes",
-                         ColSideColors = categ_colors[ dge@ident[ colnames( norm_expr ) ] %>% as.character ] ,
-                         RowSideColors = categ_colors[ marker_info$cluster %>% as.character ] )
-    }
-  }
-  dev.off()
-  print( paste0( "Heatmap saved as ", fname) ) 
-}
 
 ## ------------------------------------------------------------------------
 #' Make a heatmap with one column for each cluster in `unique( Seurat::FetchData(dge, ident.use)[[1]])` and 
@@ -1141,8 +988,6 @@ make_heatmap_for_table = function( dge, genes_in_order,
   plot_df_long = reshape2::melt( plot_df_wide, 
                                  id.vars = c("gene", "y"), 
                                  value.name = "RelLogExpr")
-
-  plot_df_long$RelLogExpr = plot_df_long$value
   plot_df_long$Cluster = factor( as.character( plot_df_long$variable ),
                                  levels = desired_cluster_order )
   plot_df_long$gene = factor( as.character( plot_df_long$gene ),
