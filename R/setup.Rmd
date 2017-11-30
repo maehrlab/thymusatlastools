@@ -23,7 +23,6 @@ PATH_TO_TABLES = file.path( "tables" )
 #' @import ggplot2 
 #' @import magrittr
 
-assertthat::assert_that( packageVersion("destiny") >= "2")
 #' @export
 if( packageVersion("ggplot2") < "2.2.1.9000" ) { 
   warning("You may need the development version of ggplot2 if you want the 

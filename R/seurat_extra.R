@@ -322,10 +322,10 @@ SanitizeGenes = function( dge ){
     p = p + geom_point( aes_string( x=g1_score_name, y=g2_score_name ) ) 
   }
   p = p + expand_limits(y=0, x=0)
-  # Facet to taste
+  # Facet if desired
   if(!is.null(facet_by)) {
     p = p + facet_wrap(as.formula(paste0("~", facet_by)))
-    plot_df[[facet_by]] %<>% droplevels
+    plot_df[[facet_by]] %<>% as.factor %>% droplevels
   }
   
   # Add quadrants and percentages

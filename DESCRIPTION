@@ -15,8 +15,7 @@ Imports: enrichR,
 	reshape,
 	cluster,
 	mgcv
-Suggests: testthat,
-    destiny
+Suggests: testthat
 License: All rights reserved.
 Encoding: UTF-8
 LazyData: true

@@ -21,7 +21,7 @@ make_heatmap_for_table(dge, genes_in_order, desired_cluster_order = NULL,
 
 \item{aggregator}{Function to aggregate expression within a group of cells. Try mean or prop_nz.}
 
-\item{normalize}{"row", "column", or "none". Normalization function gets applied across the axis this specifies.}
+\item{normalize}{"row", "column", "both", or "none". Normalization function gets applied across the axis this specifies.}
 
 \item{norm_fun}{Function to use for normalization. Try div_by_max or standardize.}
 

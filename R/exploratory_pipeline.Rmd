@@ -503,13 +503,24 @@ time_series_save = function( dge,
 
 #' Make tSNE plots (or PCA, or Monocle; it's customizable)
 #' 
-#' I needed a little bit more flexibility than Seurat was giving me with the feature plots.
-#' Note: this used to plot the ranks of the data, but now it doesn't unless you specify `use_rank = T`.
-#' If you want cols.use to work for categorical variables, then it should be named with the variable's levels.
-#' For a blank plot (default), set `colour = NULL`.
+#' @param dge Seurat object
+#' @param colour Variable to fetch and plot. Length-1 character. "plain_grey" returns a dark grey plot.
+#' @param subset_id Vector of subsets to include on the plot. Cells not included will still be included via
+#' geom_blank so as to preserve the scale of the plot.
+#' @param axes Variables to fetch for use on X and Y axes. Defaults to tSNE embedding.
+#' @param fix_coords Force the plot to be square? Defaults to T, because a rotated or reflected version of 
+#' the tSNE embedding should convey the exact same relationships. 
+#' @param alpha Transparency. Number between 0 and 1. 
+#' @param cols.use Colorscale. Character vector, hexadecimal or e.g. c("khaki1", "red"). 
+#' For discrete data fetched for "colour", should be named with the variable's levels.
+#' @param use_rank Transform expression level to ranks before plotting?
+#' @param overplot_adjust Bin points within hexagons. Nice for Monocle embeddings. 
+#' 
 #' @export
-custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("tSNE_1", "tSNE_2"),
-                               alpha = 1, cols.use = blue_gray_red, use_rank = F, overplot_adjust = F, ...){
+#'
+custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("tSNE_1", "tSNE_2"), 
+                               fix_coords = T, show_axes = F,
+                               alpha = 1, cols.use = blue_gray_red, use_rank = F, overplot_adjust = F ){
   
   # Sanitize input -- `aes_string` was choking on a gene with a hyphen (Nkx2-1)
   rownames( dge@data ) = make.names( rownames( dge@data ) )
@@ -601,6 +612,18 @@ custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("t
       p = p + ggtitle( colour )
     }
   }
+  if( fix_coords ){
+    p = p + coord_fixed()
+  }
+  if( !show_axes ){
+    p = p + theme(axis.line=element_blank(),
+                  axis.ticks=element_blank(),
+                  axis.text.x=element_blank(),
+                  axis.text.y=element_blank(),
+                  axis.title.x=element_blank(),
+                  axis.title.y=element_blank() )
+  }
+    
   return(p)
 }
 ```
@@ -843,6 +866,10 @@ do_enrichr = function( results_path, geneset, geneset_name,
                                        "NCI-Nature_2016", 
                                        "GO_Biological_Process_2015" ),
                        N_ANNOT_PER_DB = 2 ){
+  if(length(geneset) == 0) {
+    warning( "List of length zero fed to do_enrichr. Returning NULL.")
+    return(NULL)
+  }
   
   my_rp = file.path( results_path, paste0("annot_", geneset_name) )
   dir.create.nice( my_rp )
@@ -954,7 +981,7 @@ fix_cluster_order = function(  dge, marker_info, ident.use, desired_cluster_orde
 #' @param ident.use Variable to aggregate by.
 #' @param labels "regular" (all labels), "stagger" (all labels, alternating left-right to fit more genes), or "none". 
 #' @param aggregator Function to aggregate expression within a group of cells. Try mean or prop_nz.
-#' @param normalize "row", "column", or "none". Normalization function gets applied across the axis this specifies.
+#' @param normalize "row", "column", "both", or "none". Normalization function gets applied across the axis this specifies.
 #' @param norm_fun Function to use for normalization. Try div_by_max or standardize.
 #' @param genes_to_label A (small) subset of genes to label. If set, nullifies labels arg. 
 #' @param main Title of plot.
@@ -1009,16 +1036,22 @@ make_heatmap_for_table = function( dge, genes_in_order,
   # # Get cluster mean expression for each gene and row normalize
   logscale_expression = Seurat::FetchData(dge, vars.all = genes_in_order)[names( ident ), ]
   expression_by_cluster = aggregate_nice( x = logscale_expression, by = list( ident ), FUN = aggregator )
+  # The net result of this conditional should be to preserve the dimensions.
+  dim_old = dim(expression_by_cluster)
   if( normalize == "row" ){
-    expression_by_cluster = apply(X = expression_by_cluster, FUN = norm_fun, MARGIN = 2 ) %>% t
+    expression_by_cluster = apply(X = expression_by_cluster, FUN = norm_fun, MARGIN = 2 )  
   } else if( normalize == "column" ){
-    expression_by_cluster = apply(X = expression_by_cluster, FUN = norm_fun, MARGIN = 1 ) 
+    expression_by_cluster = apply(X = expression_by_cluster, FUN = norm_fun, MARGIN = 1 ) %>% t 
+  } else if( normalize == "both" ){
+    expression_by_cluster = apply(X = expression_by_cluster, FUN = norm_fun, MARGIN = 1 ) %>% t  
+    expression_by_cluster = apply(X = expression_by_cluster, FUN = norm_fun, MARGIN = 2 ) 
   } else if( normalize != "none"){
-    warning('normalize should be one of "row", "column", or "none". Performing row normalization.')
+    warning('normalize should be one of "row", "column", "both", or "none". Performing row normalization.')
     normalize = "row"
-  } else {
-    expression_by_cluster = t(expression_by_cluster)
-  }
+  } 
+  atat(all(dim(expression_by_cluster) == dim_old))
+  expression_by_cluster = t(expression_by_cluster) 
+  
   
   # # Stop and return data if desired
   if( return_type == "table" ){ return(expression_by_cluster) }

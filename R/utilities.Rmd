@@ -337,6 +337,9 @@ split_path = function(path) {
 #' Otherwise, it returns just the preimage.
 #' @export
 get_preimage = function( map, detailed_output = F ){
+  assertthat::assert_that(is.character(map))
+  assertthat::assert_that(is.vector(map))
+  assertthat::assert_that(is.atomic(map))
   if( any( is.na( map ) ) ) { warning( "I haven't tested this on missing values." ) }
   # # Preallocate. Empty lists are treacherous bastards, so fill in NA's at first.
   range_of_map = unique( map )

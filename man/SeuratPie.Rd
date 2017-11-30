@@ -5,7 +5,7 @@
 \title{Make small-multiple pie charts.}
 \usage{
 SeuratPie(dge, ident.use = "cell_type", facet_by = "eday", col = NULL,
-  label = F, main = "Sample makeup by day")
+  label = F, main = "Sample makeup by day", drop_levels = F)
 }
 \arguments{
 \item{dge}{Seurat object}
@@ -19,6 +19,8 @@ SeuratPie(dge, ident.use = "cell_type", facet_by = "eday", col = NULL,
 \item{label}{Logical. If TRUE, percentages are added.}
 
 \item{main}{Plot title.}
+
+\item{drop_levels}{If TRUE, omit facets that would be empty.}
 }
 \description{
 Make small-multiple pie charts.
