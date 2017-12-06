@@ -269,7 +269,7 @@ add_maehrlab_metadata = function( dge, variable_to_add, new_name = NULL, NA_stri
   new_temp = data_by_sample[ as.character( dge@data.info$orig.ident ) ]
   names( new_temp ) = rownames( dge@data.info )
   if( is.null( new_name ) ){ new_name = variable_to_add }
-  dge = Seurat::AddMetaData( dge, metadata = new_temp, col.name = new_name )
+  dge = OldSeurat::AddMetaData( dge, metadata = new_temp, col.name = new_name )
   return( dge )
 }
 

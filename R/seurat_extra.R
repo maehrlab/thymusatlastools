@@ -188,7 +188,7 @@ FindMarkersFlex = function( object,
   ident.2 = paste0(ident.2, collapse = "_")
   object %<>% AddMetaData(metadata = new_ident, col.name = ident.use)
   # To interface with Seurat, the @ident slot gets overwritten with the groups for the expression test.
-  object %<>% Seurat::SetIdent(ident.use = new_ident)
+  object %<>% OldSeurat::SetIdent(ident.use = new_ident)
   # Slice the object down to just the relevant cells, to save time and reduce code complexity downstream.
   predicate = paste0(ident.use, " %in% c( '", ident.1, "', '", paste0(ident.2, collapse = "', '"), "' )")
   object %<>% SubsetDataFlex(vars.use = ident.use, predicate)
@@ -228,7 +228,7 @@ FindMarkersFlex = function( object,
         ". Setting failures to 1 for conservative FDR control. \n" )
     x$p.value[failures] = 1
   } else {
-    x = Seurat::FindMarkers( object, ident.1 = ident.1, ident.2 = ident.2,                              
+    x = OldSeurat::FindMarkers( object, ident.1 = ident.1, ident.2 = ident.2,                              
                              test.use = test.use,
                              genes.use = genes.use,   
                              thresh.use = thresh.use, 

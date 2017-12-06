@@ -1,5 +1,5 @@
 Package: thymusatlastools
-Title: A Transcriptomic Atlas of Thymus Development (public data)
+Title: Tools for analysis of single-cell transcriptomic data
 Version: 0.0.0.9000
 Authors@R: person("Eric", "Kernfeld", email = "eric.kernfeld@umassmed.edu", role = c("aut", "cre"))
 Description: This set of packages serves as a vehicle for code and data to accompany the recent paper INSERT CITATION HERE EVENTUALLY.
@@ -14,7 +14,8 @@ Imports: enrichR,
 	magrittr,
 	reshape,
 	cluster,
-	mgcv
+	mgcv,
+    OldSeurat
 Suggests: testthat
 License: All rights reserved.
 Encoding: UTF-8

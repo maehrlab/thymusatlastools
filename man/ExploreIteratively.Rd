@@ -6,7 +6,7 @@
 \usage{
 ExploreIteratively(dge, log_fc = 0.25, eligible_genes = NULL, maxiter = 5,
   tol = 10, verbose = T, cluster_method = function(...)
-  Seurat::FindClusters(..., print.output = F), num_pc = 25, ...)
+  OldSeurat::FindClusters(..., print.output = F), num_pc = 25, ...)
 }
 \arguments{
 \item{dge}{Seurat object.}
@@ -19,7 +19,7 @@ ExploreIteratively(dge, log_fc = 0.25, eligible_genes = NULL, maxiter = 5,
 
 \item{tol}{If the list changes by less than this many genes (added + removed), it stops.}
 
-\item{cluster_method}{A user-provided function to re-estimate clusters, modeled off Seurat::FindClusters. 
+\item{cluster_method}{A user-provided function to re-estimate clusters, modeled off OldSeurat::FindClusters. 
 It should take a Seurat object as the first arg.
 It should also accept a `pc.use` input (even if you just discard it).
 For your convenience, the principal components get updated before this function is called.

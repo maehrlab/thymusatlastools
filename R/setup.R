@@ -7,7 +7,7 @@
 
 PATH_TO_TABLES = file.path( "tables" ) 
 
-#' @import Seurat 
+#' @import OldSeurat 
 #' @import ggplot2 
 #' @import magrittr
 
