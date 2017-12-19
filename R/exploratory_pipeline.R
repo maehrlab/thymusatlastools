@@ -416,6 +416,7 @@ get_similar_genes = function( dge, markers, n, anticorr = F, aggregator = sum ){
   data.use = dge@scale.data
   to_match = FetchData( dge, markers ) %>% apply( 2, standardize ) %>% as.matrix 
   correlation = c( data.use %*% apply( to_match, 1, aggregator ) ) 
+  names(correlation) = rownames(data.use)
   correlation = correlation[ setdiff( names( correlation ), markers ) ]
   if( anticorr ){
     similar_genes = names( sort( abs( correlation ), decreasing = T )[ 1:n ] )
