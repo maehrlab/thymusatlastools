@@ -4,7 +4,8 @@
 \alias{explore_embeddings}
 \title{Quickly explore many parameter settings}
 \usage{
-explore_embeddings(dge, results_path, all_params, test_mode = F)
+explore_embeddings(dge, results_path, all_params, test_mode = F,
+  remove_cc_genes = F)
 }
 \description{
 Quickly explore many parameter settings

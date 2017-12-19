@@ -4,7 +4,7 @@
 \alias{get_similar_genes}
 \title{Find genes with expression patterns similar to the genes you've specified.}
 \usage{
-get_similar_genes(dge, markers, n, anticorr = F)
+get_similar_genes(dge, markers, n, anticorr = F, aggregator = sum)
 }
 \arguments{
 \item{`dge`}{: a Seurat object with field `@scale.data` filled in.}
@@ -13,7 +13,9 @@ get_similar_genes(dge, markers, n, anticorr = F)
 
 \item{`n`:}{integer; number of results to return.}
 
-\item{`anticorr`}{: allow negatively correlated genes; defaults to `FALSE`.
+\item{`anticorr`}{: allow negatively correlated genes; defaults to `FALSE`.}
+
+\item{`aggregator`}{: If multiple genes, how to combine their correlations. Default is "sum". For an "and"-like filter, use "min".
 
 Given a Seurat object and a list of gene names, this function returns genes 
 that are strongly correlated with those markers.}
