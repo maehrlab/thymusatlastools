@@ -62,18 +62,25 @@ FetchDataZeroPad = function( dge, vars.all, warn = T, ... ){
 #' @param predicate String to be parsed into an R expression and evaluated as an arg to base::subset.
 #' @param preserve_raw If TRUE, then it will not exclude any cells from the @raw.data slot.
 #' By default, it leaves cells in @raw.data only if they satisfy the given predicate.
+#' @param show_on_tsne If true, save a tSNE showing which cells are kept.
+#' @param results_path Where to save the tSNE.
 #' @details Calls FetchData, subsets it as a dataframe using base::subset, and 
 #' subsets the Seurat object correspondingly (using the df rownames.)
 #'
 #' @export
 #'
-SubsetDataFlex = function( dge, vars.use, predicate, preserve_raw = FALSE ){
+SubsetDataFlex = function( dge, vars.use, predicate, preserve_raw = FALSE, 
+                           results_path = NULL, show_on_tsne = !is.null(results_path) ){
   if( typeof(predicate) != "character"){
     print("predicate should be a character vector. It will be parsed into `subset` as an R expression.")
   }
 
   df = FetchData(dge, vars.use) %>% as.data.frame
   cu = df %>% subset(eval(parse(text=predicate))) %>% rownames
+  if( show_on_tsne ){
+    dge@data.info$included = (rownames(dge@data.info) %in% cu) %>% as.character
+    tsne_colored( dge, results_path, colour = "included" )
+  }
   dge = SubsetData(dge, cells.use = cu)
   if( !preserve_raw ){
     dge@raw.data = deseuratify_raw_data(dge) 

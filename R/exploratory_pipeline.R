@@ -419,7 +419,7 @@ get_similar_genes = function( dge, markers, n, anticorr = F, aggregator = sum ){
   names(correlation) = rownames(data.use)
   correlation = correlation[ setdiff( names( correlation ), markers ) ]
   if( anticorr ){
-    similar_genes = names( sort( abs( correlation ), decreasing = T )[ 1:n ] )
+    similar_genes = names( sort( (abs)( correlation ), decreasing = T )[ 1:n ] )
   } else {
     similar_genes = names( sort( correlation, decreasing = T )[ 1:n ] )
   }

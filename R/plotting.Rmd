@@ -338,7 +338,7 @@ save_plot_grid = function( dge, results_path,
 #' @export
 tsne_colored = function(dge, results_path, colour = NULL, fig_name = NULL,
                         axes = c("tSNE_1", "tSNE_2"), axes_description = "TSNE", 
-                        alpha = 1, height = 7, width = 8, 
+                        alpha = 1, height = 7, width = NA, 
                         types = c("PDF", "PDF_no_leg" ), ... ){
   
   # Sanitize input -- `aes_string` was choking on a gene with a hyphen (Nkx2-1)
@@ -355,15 +355,14 @@ tsne_colored = function(dge, results_path, colour = NULL, fig_name = NULL,
   fig_name %<>% strip_suffix( ".png" )
   
   # Get plot
-  p = custom_feature_plot(dge = dge, colour = colour, axes = axes, alpha = alpha, ...)
+  p = custom_feature_plot(dge = dge, colour = colour, axes = axes, alpha = alpha, ... )
   
   # Save plots
-  stretch = (1 + 0.025*max( nchar(colour), 0))
   dir.create.nice( file.path( results_path, axes_description ) )
   if( "pdf" %in% types ){
     ggsave( filename = file.path( results_path, axes_description, paste0(fig_name, ".pdf") ),
-          plot = p,
-          width = width*stretch, height = height)
+            plot = p,
+            width = width, height = height)
   } 
   if( any( c("pdf_noleg", "pdf_no_leg") %in% types ) ){
     ggsave( filename = file.path( results_path, axes_description, paste0(fig_name, "_no_leg.pdf") ),
@@ -378,7 +377,7 @@ tsne_colored = function(dge, results_path, colour = NULL, fig_name = NULL,
               theme(axis.text.x  = element_blank(), 
                     axis.text.y  = element_blank()) + 
               xlab("") + ylab("") + ggtitle(""),
-            width = width*stretch, height = height)
+            width = width, height = height)
     
     # ==== PDF with no points ====
     # Copy plot and remove points
