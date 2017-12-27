@@ -154,7 +154,7 @@ add_rp_percentage = function( dge ){
   rp_counts %<>% t %>% as.data.frame 
   cells = rownames(rp_counts)
   rp_counts %<>% apply(1, div_by_sum) %>% t %>% as.data.frame 
-  rp_counts %<>% dplyr::rename(c("TRUE"="ribo_nUMI_pct", "FALSE"="non_ribo_nUMI_pct"))
+  rp_counts %<>% plyr::rename(replace = c("TRUE"="ribo_nUMI_pct", "FALSE"="non_ribo_nUMI_pct"))
   rownames(rp_counts) = cells
   dge = AddMetaData( dge, metadata = vectorize_preserving_rownames(rev(rp_counts)), col.name = "ribo_nUMI_pct" )
   return(dge)
@@ -831,9 +831,7 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
     # # select genes, confining to whitelist and excluding blacklist.
     dge = var_gene_select( dge, results_path = rp_mini, test_mode,
                            excess_var_cutoff   = param_row[["excess_var_cutoff"]],
-                           log_expr_cutoff     = param_row[["log_expr_cutoff"]],
-                           prop_genes_to_select = param_row[["prop_genes_to_select"]],
-                           method = param_row[["var_gene_method"]])
+                           log_expr_cutoff     = param_row[["log_expr_cutoff"]] )
     dge@var.genes %<>% intersect( whitelist )
     dge@var.genes %<>% setdiff( blacklist )
     
@@ -850,7 +848,7 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
     misc_summary_info( dge, results_path = rp_mini)
     saveRDS( dge, file.path( rp_mini, "dge.data") ) 
     top_genes_by_pc(   dge, results_path = rp_mini, test_mode)
-    PLOTFUN( dge, results_path = rp_mini, ... )
+    PLOTFUN( dge, rp_mini, ... )
     prev_param_row = param_row
   }
   return(dge)
