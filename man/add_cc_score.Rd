@@ -7,13 +7,5 @@
 add_cc_score(dge, method = "average")
 }
 \description{
-The function `add_cc_score` takes a Seurat object and adds cell cycle scores to the metadata (`object@data.info`). If
-`method = "average"`, the columns are quantitative scores for each of the five cell-cycle phases.
-If `method == "average2"`, then only two phases are used (IG1/S and S). They are computed by adding up the
-expression levels of genes in five different sets; each set characterizes one phase.
-If `method == correlation`, then each cell is annotated with its Pearson correlation with five "pseudocells". One of
-the pseudocells expresses all M genes equally and no others, and the others are the same but for other cell cycle
-phases.
-If `method` is e.g. `pca_2`, then a PCA is computed with the union of the five gene lists as active genes, and the
-first two PC's are regressed out (similar to SCLVM's Gaussian model with low-rank covariance).
+The function `add_cc_score` takes a Seurat object and adds cell cycle scores to the metadata (`object@data.info`). The columns are quantitative scores for each of the five cell-cycle phases.
 }

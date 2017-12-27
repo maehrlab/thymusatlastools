@@ -2,7 +2,7 @@
 % Please edit documentation in R/exploratory_pipeline.R
 \name{make_heatmap_for_table}
 \alias{make_heatmap_for_table}
-\title{Make a heatmap with one column for each cluster in `unique( OldSeurat::FetchData(dge, ident.use)[[1]])` and
+\title{Make a heatmap with one column for each cluster in `unique( OldSeurat::FetchData(dge, ident.use)[[1]])` and 
 one row for every gene in `genes_in_order`.}
 \usage{
 make_heatmap_for_table(dge, genes_in_order, desired_cluster_order = NULL,
@@ -29,14 +29,14 @@ make_heatmap_for_table(dge, genes_in_order, desired_cluster_order = NULL,
 
 \item{main}{Title of plot.}
 
-\item{return_type}{"plot" or "table". If "table", then instead of returning a heatmap, this
+\item{return_type}{"plot" or "table". If "table", then instead of returning a heatmap, this 
 returns the underlying matrix of normalized, cluster-aggregated values. If anything else, returns a ggplot.
 
 If the cluster's expression values are stored in `x`, then `aggregator(x)` gets (normalized and) plotted.
-Optional parameter `desired_cluster_order` gets coerced to character. It should be a subset of
+Optional parameter `desired_cluster_order` gets coerced to character. It should be a subset of 
 `unique(OldSeurat::FetchData(dge, ident.use))` (no repeats).}
 }
 \description{
-Make a heatmap with one column for each cluster in `unique( OldSeurat::FetchData(dge, ident.use)[[1]])` and
+Make a heatmap with one column for each cluster in `unique( OldSeurat::FetchData(dge, ident.use)[[1]])` and 
 one row for every gene in `genes_in_order`.
 }

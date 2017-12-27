@@ -17,7 +17,7 @@ get_similar_genes(dge, markers, n, anticorr = F, aggregator = sum)
 
 \item{`aggregator`}{: If multiple genes, how to combine their correlations. Default is "sum". For an "and"-like filter, use "min".
 
-Given a Seurat object and a list of gene names, this function returns genes
+Given a Seurat object and a list of gene names, this function returns genes 
 that are strongly correlated with those markers.}
 }
 \value{

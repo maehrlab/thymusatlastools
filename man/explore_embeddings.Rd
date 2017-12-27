@@ -5,7 +5,27 @@
 \title{Quickly explore many parameter settings}
 \usage{
 explore_embeddings(dge, results_path, all_params, test_mode = F,
-  remove_cc_genes = F)
+  whitelist = AvailableData(dge), blacklist = c(),
+  regress_out = thymusatlastools::get_macosko_cc_genes() \%>\% names,
+  PLOTFUN = function(dge, results_path) {     return() }, ...)
+}
+\arguments{
+\item{dge}{Seurat object.}
+
+\item{results_path}{}
+
+\item{test_mode}{If true, does a trial run on a small subset of the data.}
+
+\item{whitelist}{Everything not on this list is excluded.}
+
+\item{blacklist}{Genes to exclude. Typically nothing (default), but could be cell cycle genes (try thymusatlastools::get_macosko_cc_genes() %>% Reduce(f=union) ) or ribosomal subunit genes. Make sure you get the species right!}
+
+\item{regress_out}{Covariates to regress out via Seurat::RegressOut. Defaults to the cell-cycle scores that are provided by thymusatlastools::add_cc_score.}
+
+\item{PLOTFUN}{A function for extra plotting with each set of parameters. 
+Should accept a Seurat object (first arg), a results path (second arg), and then anything else.}
+
+\item{...}{Passed to PLOTFUN.}
 }
 \description{
 Quickly explore many parameter settings

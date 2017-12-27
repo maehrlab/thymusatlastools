@@ -21,6 +21,6 @@ A wrapper for Seurat's clustering functions.
 For more information on density-based clustering (DBSCAN), look at the KDD-96 paper by Ester, Kriegel, Sander, and Xu.
 "A density-based algorithm for discovering clusters in large spatial databases with noise."
 For more information on the SNN-based clustering, look at (the parameter gamma in)
-"A unified approach to mapping and clustering of bibliometric networks",
+"A unified approach to mapping and clustering of bibliometric networks", 
 Ludo Waltman, Nees Jan van Eck, and Ed C.M. Noyons
 }
