@@ -9,7 +9,7 @@ RefineVariableGenes(dge, log_fc = 1, eligible_genes = NULL)
 \arguments{
 \item{dge}{Seurat object}
 
-\item{log_fc}{For each gene, we compute the difference between the highest and lowest cluster mean. 
+\item{log_fc}{For each gene, we compute the difference between the highest and lowest cluster mean.
 If it exceeds this, the gene is included in the active set.}
 
 \item{eligible_genes}{dge@var.genes get intersected with this list before return.}

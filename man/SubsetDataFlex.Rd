@@ -4,7 +4,8 @@
 \alias{SubsetDataFlex}
 \title{Subset data flexibly from a Seurat object.}
 \usage{
-SubsetDataFlex(dge, vars.use, predicate, preserve_raw = FALSE)
+SubsetDataFlex(dge, vars.use, predicate, preserve_raw = FALSE,
+  results_path = NULL, show_on_tsne = !is.null(results_path))
 }
 \arguments{
 \item{dge}{Seurat object}
@@ -15,6 +16,10 @@ SubsetDataFlex(dge, vars.use, predicate, preserve_raw = FALSE)
 
 \item{preserve_raw}{If TRUE, then it will not exclude any cells from the @raw.data slot.
 By default, it leaves cells in @raw.data only if they satisfy the given predicate.}
+
+\item{results_path}{Where to save the tSNE.}
+
+\item{show_on_tsne}{If true, save a tSNE showing which cells are kept.}
 }
 \description{
 Subset data flexibly from a Seurat object.

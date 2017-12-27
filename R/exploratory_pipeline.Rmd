@@ -150,11 +150,11 @@ is_rp = function( genes ){
 #' @export
 #'
 add_rp_percentage = function( dge ){
-  rp_counts = aggregate.nice( dge@raw.data, by = is_rp( rownames( dge@raw.data ) ), FUN = sum ) 
+  rp_counts = aggregate_nice( dge@raw.data, by = is_rp( rownames( dge@raw.data ) ), FUN = sum ) 
   rp_counts %<>% t %>% as.data.frame 
   cells = rownames(rp_counts)
   rp_counts %<>% apply(1, div_by_sum) %>% t %>% as.data.frame 
-  rp_counts %<>% rename(c("TRUE"="ribo_nUMI_pct", "FALSE"="non_ribo_nUMI_pct"))
+  rp_counts %<>% dplyr::rename(c("TRUE"="ribo_nUMI_pct", "FALSE"="non_ribo_nUMI_pct"))
   rownames(rp_counts) = cells
   dge = AddMetaData( dge, metadata = vectorize_preserving_rownames(rev(rp_counts)), col.name = "ribo_nUMI_pct" )
   return(dge)
@@ -162,21 +162,12 @@ add_rp_percentage = function( dge ){
 
 #' Quantify cell-cycle activity by phase.
 #'
-#' The function `add_cc_score` takes a Seurat object and adds cell cycle scores to the metadata (`object@data.info`). If 
-#' `method = "average"`, the columns are quantitative scores for each of the five cell-cycle phases. 
-#' If `method == "average2"`, then only two phases are used (IG1/S and S). They are computed by adding up the 
-#' expression levels of genes in five different sets; each set characterizes one phase. 
-#' If `method == correlation`, then each cell is annotated with its Pearson correlation with five "pseudocells". One of 
-#' the pseudocells expresses all M genes equally and no others, and the others are the same but for other cell cycle 
-#' phases. 
-#' If `method` is e.g. `pca_2`, then a PCA is computed with the union of the five gene lists as active genes, and the 
-#' first two PC's are regressed out (similar to SCLVM's Gaussian model with low-rank covariance). 
+#' The function `add_cc_score` takes a Seurat object and adds cell cycle scores to the metadata (`object@data.info`). The columns are quantitative scores for each of the five cell-cycle phases. 
 #'
 #' @export
 #'
 add_cc_score = function(dge, method = "average"){
   # Get cell cycle genes and expression data
-  # ccDat   = read.table(file.path(PATH_TO_TABLES, "ms_cellcycleGO0007049.txt"),   sep="\t")
   macosko_cell_cycle_genes = get_macosko_cc_genes()
   phases = colnames( macosko_cell_cycle_genes )
   raw_dge = as.matrix( dge@data ) # calculate scores on log1p-scale data
@@ -202,44 +193,18 @@ add_cc_score = function(dge, method = "average"){
     geneset[[phase]]  = union( geneset[[phase]], human_ortho )
     geneset[[phase]]  = intersect( geneset[[phase]] , rownames( raw_dge ) )
   }
-  if( method == "correlation" ){
-    # produce a score for each phase
-    pseudocells = as.list(phases); names( pseudocells ) = phases
-    for( phase in phases ){
-      pseudocells[[phase]] = rownames( raw_dge ) %in% geneset[[phase]] 
-    }
-    scores_mat = cor( as.matrix( as.data.frame( pseudocells ) ), as.matrix( raw_dge ) )
-    rownames( scores_mat ) = colnames( macosko_cell_cycle_genes )
-    colnames( scores_mat ) = colnames( raw_dge )
-    scores_df = data.frame(t(scores_mat))
-  } else if( method == "average" ){
-    # produce a score for each phase
-    scores_mat = matrix( 0, nrow = length( phases ), ncol = ncol( raw_dge ) )
-    rownames( scores_mat ) = colnames( macosko_cell_cycle_genes )
-    colnames( scores_mat ) = colnames( raw_dge )
-    for( phase in phases ){
-      scores_mat[phase, ] = apply( X = raw_dge[geneset[[phase]],], MARGIN = 2, FUN = mean )
-    }
-    scores_df = data.frame(t(scores_mat))
-  } else {
-    # take the union of the cc genes and do a PCA
-    method_split = down_idx(strsplit(method, split = "_"))
-    method_prefix = method_split[[1]]
-    method_suffix = method_split[[2]]
-    atat(method_prefix == c("pca"))
-    num_pc = method_suffix %>% as.numeric %>% round
-    macosko_cell_cycle_genes = Reduce( union, geneset )
-    macosko_cell_cycle_genes = intersect(macosko_cell_cycle_genes, rownames(raw_dge))
-    dge@var.genes = macosko_cell_cycle_genes
-    scores_df = OldSeurat::PCA(dge, pc.genes = macosko_cell_cycle_genes, pcs.store = num_pc, do.print = F)@pca.rot
-    dge@var.genes = ""
-    names(scores_df) = paste0("cc_pc", seq_along(scores_df))
-  }  
-  if( any( names( scores_df ) %in% names( dge@data.info ) ) ){
-    warning("Overwriting some metadata fields in Seurat object.")
+  
+  # produce a score for each phase
+  scores_mat = matrix( 0, nrow = length( phases ), ncol = ncol( raw_dge ) )
+  rownames( scores_mat ) = colnames( macosko_cell_cycle_genes )
+  colnames( scores_mat ) = colnames( raw_dge )
+  for( phase in phases ){
+    scores_mat[phase, ] = apply( X = raw_dge[geneset[[phase]],], MARGIN = 2, FUN = mean )
   }
+  scores_df = data.frame(t(scores_mat))
+  
   dge = OldSeurat::AddMetaData(dge, scores_df)
-  return(list(dge = dge, cc_score_names = names(scores_df)))
+  return( dge )
 }
 ```
 
@@ -437,10 +402,16 @@ compare_views = function(dge, results_path, comparator_dge, dge_name, comparator
 #' @export
 #'
 get_similar_genes = function( dge, markers, n, anticorr = F, aggregator = sum ){
-  markers = intersect(markers, AvailableData( dge ) ) 
+  assertthat::assert_that( markers %in% AvailableData( dge ) )? 
   data.use = dge@scale.data
-  to_match = FetchData( dge, markers ) %>% apply( 2, standardize ) %>% as.matrix 
-  correlation = c( data.use %*% apply( to_match, 1, aggregator ) ) 
+  to_match = 
+    FetchData( dge, markers ) %>% 
+    as.data.frame %>% 
+    apply( 2, standardize ) %>%
+    as.matrix(ncol = length(markers)) %>%
+    apply( 1, aggregator )
+  print(dim(to_match))
+  correlation = c( data.use %*% to_match ) 
   names(correlation) = rownames(data.use)
   correlation = correlation[ setdiff( names( correlation ), markers ) ]
   if( anticorr ){
@@ -811,15 +782,34 @@ screen_receptor_ligand = function( is_expressed, results_path ){
 ```{r}
 
 #' Quickly explore many parameter settings
+#'
+#' @param dge Seurat object.
+#' @param results_path 
+#' @param all_params
+#' @param test_mode If true, does a trial run on a small subset of the data.
+#' @param whitelist Everything not on this list is excluded.
+#' @param blacklist Genes to exclude. Typically nothing (default), but could be cell cycle genes (try thymusatlastools::get_macosko_cc_genes() %>% Reduce(f=union) ) or ribosomal subunit genes. Make sure you get the species right!
+#' @param regress_out Covariates to regress out via Seurat::RegressOut. Defaults to the cell-cycle scores that are provided by thymusatlastools::add_cc_score. 
+#' @param PLOTFUN A function for extra plotting with each set of parameters. 
+#' Should accept a Seurat object (first arg), a results path (second arg), and then anything else.
+#' @param ... Passed to PLOTFUN. 
+#'
 #' @export
-explore_embeddings = function(dge, results_path, all_params, test_mode = F, remove_cc_genes = F){
+explore_embeddings = function( dge, results_path, all_params, test_mode = F, 
+                               whitelist = AvailableData(dge), 
+                               blacklist = c(), 
+                               regress_out = thymusatlastools::get_macosko_cc_genes() %>% names,
+                               PLOTFUN = function(dge, results_path){return()}, ... ){
   atat(is.data.frame( all_params ) )
-  required_params = c( "cc_method",
-                       "num_pc", 
-                       "clust_granularities_as_string",
-                       "plot_all_var_genes" )
+  required_params = c( "num_pc", 
+                       "clust_granularities_as_string" )
   atat( all( required_params %in% names( all_params ) ) )
   atat( any( c( "excess_var_cutoff","log_expr_cutoff", "prop_genes_to_select" ) %in% names( all_params ) ) )
+  
+  # # As a courtesy, automatically provide CC scores.
+  if( !all(blacklist %in% AvailableData(dge))){
+    dge %<>% add_cc_score()
+  }
   
   # # Record the things you're gonna try
   dir.create.nice( results_path )
@@ -835,36 +825,20 @@ explore_embeddings = function(dge, results_path, all_params, test_mode = F, remo
     rp_mini = file.path(results_path, collapse_by_name( all_params[i,] ))
     dir.create.nice(rp_mini)
 
-    # # remove cc variation
-    if( "extra_regressout" %in% names( param_row ) ){
-      extra_vars = trimws( strsplit( param_row[["extra_regressout"]], "," )[[1]] )
-    } else {
-      extra_vars = c()
-    }
-    if(is.null(prev_param_row) || param_row[["cc_method"]] != prev_param_row[["cc_method"]]){
-      cc_scores_out = add_cc_score(dge, method = param_row[["cc_method"]])
-      dge = OldSeurat::RegressOut(object = cc_scores_out$dge, 
-                               latent.vars = c(cc_scores_out$cc_score_names, extra_vars))
-    }
+    # # remove cc variation, or whatever is in regress_out 
+    dge = OldSeurat::RegressOut( object = dge, 
+                                 latent.vars = regress_out )
     
-    # # select genes; do dim red; cluster cells
+    # # select genes, confining to whitelist and excluding blacklist.
     dge = var_gene_select( dge, results_path = rp_mini, test_mode,
                            excess_var_cutoff   = param_row[["excess_var_cutoff"]],
                            log_expr_cutoff     = param_row[["log_expr_cutoff"]],
                            prop_genes_to_select = param_row[["prop_genes_to_select"]],
                            method = param_row[["var_gene_method"]])
-    if( !is.null( param_row[[ "TF_only" ]] ) && param_row[[ "TF_only" ]] ){
-      dge@var.genes %<>% intersect(get_mouse_tfs())
-    }
+    dge@var.genes %<>% intersect( whitelist )
+    dge@var.genes %<>% setdiff( blacklist )
     
-    # # Remove cc variation another way
-    if( remove_cc_genes ){
-      dge@var.genes %<>% setdiff(get_macosko_cc_genes() %>% 
-                                   Reduce(f=c) %>%
-                                   get_ortholog(from="human", to="mouse") %>% 
-                                   na.omit())
-    }
-
+    # Reduce dimension and cluster cells
     dge = OldSeurat::PCA(dge, pc.genes = dge@var.genes, do.print = F) 
     pc.use = 1:param_row[["num_pc"]]
     dge = OldSeurat::RunTSNE(dge, dims.use = pc.use, do.fast = T) 
@@ -876,23 +850,8 @@ explore_embeddings = function(dge, results_path, all_params, test_mode = F, remo
     # # save plots and summaries 
     misc_summary_info( dge, results_path = rp_mini)
     saveRDS( dge, file.path( rp_mini, "dge.data") ) 
-    
     top_genes_by_pc(   dge, results_path = rp_mini, test_mode)
-    fm = param_row[["find_markers_thresh"]]
-    if( !is.null( fm ) ){
-      de_genes = find_de(dge, results_path = rp_mini, ident.use = "ident", thresh.use = fm )
-      top_markers = get_top_de_genes(de_genes, results_path = rp_mini, 
-                                     test_mode = test_mode, 
-                                     top_n = 10, thresh_df = NULL)
-      save_feature_plots(dge, results_path = rp_mini, gene_list = top_markers$gene, gene_list_name = "top_markers")
-      # save_heatmap(dge, results_path = rp_mini, marker_info = de_genes,    main = "heatmap_all_de_genes")
-      save_heatmap(dge, results_path = rp_mini, marker_info = top_markers, main = "heatmap_top_markers")
-    }
-    #save_feature_plots(dge, results_path = rp_mini)
-    pavg = param_row[["plot_all_var_genes"]]
-    if( !is.null( pavg ) && pavg  ){
-      save_feature_plots(dge, results_path = rp_mini, gene_list = dge@var.genes, gene_list_name = "var_genes")
-    }
+    PLOTFUN( dge, results_path = rp_mini, ... )
     prev_param_row = param_row
   }
   return(dge)

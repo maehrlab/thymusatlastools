@@ -5,8 +5,9 @@
 \title{Run Monocle, DPT, or PCA-based pseudotime analysis on a Seurat object.}
 \usage{
 master_pt(dge, results_path, method = "monocle", earliest_day = NULL,
-  mp = list(reset_var_genes = T, log_scale_expr_thresh = 0.1, excess_disp = 1,
-  num_mature_types = NULL, reduction_method = "DDRTree"), ...)
+  reset_var_genes = T, mp = list(reset_var_genes = reset_var_genes,
+  log_scale_expr_thresh = 0.1, excess_disp = 1, num_mature_types = NULL,
+  reduction_method = "DDRTree"), ...)
 }
 \arguments{
 \item{dge}{Seurat object}

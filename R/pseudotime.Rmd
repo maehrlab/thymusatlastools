@@ -21,7 +21,8 @@ output: html_document
 #' The statistical inference is outsourced to Monocle via call_monocle_on_seurat (or Seurat via pc_as_pt).
 #' @export
 master_pt = function( dge, results_path, method = "monocle", earliest_day = NULL,
-                      mp = list( reset_var_genes       = T, 
+                      reset_var_genes = T,
+                      mp = list( reset_var_genes       = reset_var_genes, 
                                  log_scale_expr_thresh = 0.1,
                                  excess_disp           = 1,
                                  num_mature_types      = NULL,
@@ -33,8 +34,12 @@ master_pt = function( dge, results_path, method = "monocle", earliest_day = NULL
     if( !requireNamespace("destiny", quietly = TRUE) | packageVersion("destiny") < "2" ){
       stop("Option DPT requires the package 'destiny' version >=2.5.0.")
     }
-    dm = destiny::DiffusionMap( data = t( as.matrix( dge@data ) ) )
-    dpt_out = destiny::DPT( dm )
+    if( reset_var_genes ){
+      dge %<>% MeanVarPlot
+    }
+    #dm = destiny::DiffusionMap( data = t( as.matrix( dge@scale.data ) ) )
+    dm = destiny::DiffusionMap( data = t( as.matrix( dge@scale.data[dge@var.genes, ] ) ) )
+    dpt_out = destiny::DPT( dm, ... )
     dge = add_pseudotime_to_seurat( dge, pt_obj = dpt_out, pt_method = "dpt" )
   } else {
     mobj = call_monocle_on_seurat( dge, results_path, monocle_params = mp, earliest_day = earliest_day, ... )
@@ -103,32 +108,31 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   raw_dge = deseuratify_raw_data( dge )
   geneInfo = data.frame( dge@mean.var[rownames(raw_dge), ] )
   geneInfo$gene = rownames(geneInfo)
-  pd = new("AnnotatedDataFrame", data = dge@data.info[colnames(raw_dge), ])
-  fd = new("AnnotatedDataFrame", data = geneInfo)
-  mobj = newCellDataSet( as.matrix( raw_dge ), 
-                         phenoData = pd, 
-                         featureData=fd,
-                         lowerDetectionLimit=1,
-                         expressionFamily=negbinomial.size( ) )
+  pd = Biobase::AnnotatedDataFrame( data = dge@data.info[colnames(raw_dge), ])
+  fd = Biobase::AnnotatedDataFrame( data = geneInfo )
+  mobj = monocle::newCellDataSet( as.matrix( raw_dge ), 
+                                  phenoData = pd, 
+                                  featureData=fd,
+                                  lowerDetectionLimit=1,
+                                  expressionFamily=VGAM::negbinomial.size( ) )
 
   # # Select variable genes or get from Seurat object
-  mobj = detectGenes( mobj, min_expr = 0 )
-  mobj = estimateSizeFactors( mobj )
-  mobj = estimateDispersions( mobj )
+  mobj = monocle::detectGenes( mobj, min_expr = 0 )
+  mobj = BiocGenerics::estimateSizeFactors( mobj )
+  mobj = BiocGenerics::estimateDispersions( mobj )
   if(reset_var_genes){
-    disp_table = dispersionTable( mobj )
+    disp_table = monocle::dispersionTable( mobj )
     ordering_genes = subset(disp_table,
                             ( mean_expression >= log_scale_expr_thresh ) & 
                               ( dispersion_empirical >= excess_disp * dispersion_fit ) )[["gene_id"]]
-    cc_genes_go = read.table(file.path(PATH_TO_TABLES, "ms_cellcycleGO0007049.txt"),   sep="\t")
     cc_genes_macosko = get_macosko_cc_genes()
-    cc_genes_all = Reduce(union, cc_genes_macosko) %>% union(., cc_genes_go)
+    cc_genes_all = Reduce(union, cc_genes_macosko)
     ordering_genes %<>% as.character %>% setdiff( cc_genes_all )
-    expressed_genes = row.names(subset(fData(mobj), num_cells_expressed >= 10))
+    expressed_genes = row.names(subset(Biobase::fData(mobj), num_cells_expressed >= 10))
     ordering_genes = intersect(expressed_genes,ordering_genes)
-    mobj = setOrderingFilter(mobj,ordering_genes)
+    mobj = monocle::setOrderingFilter(mobj,ordering_genes)
   } else {
-    mobj = setOrderingFilter(mobj, dge@var.genes )
+    mobj = monocle::setOrderingFilter(mobj, dge@var.genes )
   }
 
   # # Save variable genes and parameters
@@ -152,11 +156,11 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   # # (For us, batch effects are often completely nested inside of embryonic day, 
   # # so we can't adjust for them without removing the temporal signal.)
   form_str = paste0( "~", paste0( CC_PHASES, collapse = " + " ) )
-  mobj = reduceDimension(mobj,residualModelFormulaStr=form_str,pseudo_expr=1, reduction_method = reduction_method)
-  mobj = orderCells(mobj, num_paths = num_mature_types)
+  mobj = monocle::reduceDimension(mobj,residualModelFormulaStr=form_str,pseudo_expr=1, reduction_method = reduction_method)
+  mobj = monocle::orderCells(mobj, num_paths = num_mature_types)
   
   if ( is.null( earliest_day ) ) {
-    earliest_day = phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric %>% min
+    earliest_day = monocle::phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric %>% min
   } 
 
   # # This code roots the lineage tree using a horrible horrible hack!  
@@ -166,8 +170,8 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   # # their proximity to it in one of the 2d embeddings. I try rooting the tree at the best
   # # ones first, stopping when something works.
   pct_eq_10_5 = function(x) mean( x == earliest_day )
-  eday  = phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric
-  state = phenoData(mobj)[["State"]] %>% as.character %>% as.numeric
+  eday  = monocle::phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric
+  state = monocle::phenoData(mobj)[["State"]] %>% as.character %>% as.numeric
   coords = t( mobj@reducedDimS )
   eday_by_state     = aggregate_nice( x = eday,   by = state, FUN = pct_eq_10_5 )
   centroid_by_state = aggregate_nice( x = coords, by = state, FUN = mean )
