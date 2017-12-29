@@ -4,7 +4,7 @@
 \alias{get_similar_genes}
 \title{Find genes with expression patterns similar to the genes you've specified.}
 \usage{
-get_similar_genes(dge, markers, n, anticorr = F, aggregator = sum)
+get_similar_genes(dge, markers, n, anticorr = F)
 }
 \arguments{
 \item{`dge`}{: a Seurat object with field `@scale.data` filled in.}

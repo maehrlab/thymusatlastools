@@ -140,7 +140,6 @@ add_rp_percentage = function( dge ){
   rp_counts = aggregate_nice( dge@raw.data, by = is_rp( rownames( dge@raw.data ) ), FUN = sum ) 
   rp_counts %<>% t %>% as.data.frame 
   cells = rownames(rp_counts)
-  rp_counts %<>% apply(1, div_by_sum) %>% t %>% as.data.frame 
   rp_counts %<>% plyr::rename(replace = c("TRUE"="ribo_nUMI_pct", "FALSE"="non_ribo_nUMI_pct"))
   rownames(rp_counts) = cells
   dge = AddMetaData( dge, metadata = vectorize_preserving_rownames(rev(rp_counts)), col.name = "ribo_nUMI_pct" )
@@ -376,21 +375,17 @@ compare_views = function(dge, results_path, comparator_dge, dge_name, comparator
 #' @return character vector.
 #' @export
 #'
-get_similar_genes = function( dge, markers, n, anticorr = F, aggregator = sum ){
-  assertthat::assert_that( markers %in% AvailableData( dge ) )? 
+get_similar_genes = function( dge, markers, n, anticorr = F ){
   data.use = dge@scale.data
-  to_match = 
-    FetchData( dge, markers ) %>% 
-    as.data.frame %>% 
-    apply( 2, standardize ) %>%
-    as.matrix(ncol = length(markers)) %>%
-    apply( 1, aggregator )
-  print(dim(to_match))
-  correlation = c( data.use %*% to_match ) 
-  names(correlation) = rownames(data.use)
+  if(!all(markers %in% rownames(data.use))){ 
+    warning("Some of your markers have no data available. Trying Various CASE Changes.")
+    markers = unique( c( markers, toupper(markers), Capitalize( markers ) ) )
+  }
+  markers = intersect(markers, rownames( data.use) ) 
+  correlation = rowSums( data.use %*% t( data.use[markers, , drop = F]) ) 
   correlation = correlation[ setdiff( names( correlation ), markers ) ]
   if( anticorr ){
-    similar_genes = names( sort( (abs)( correlation ), decreasing = T )[ 1:n ] )
+    similar_genes = names( sort( abs( correlation ), decreasing = T )[ 1:n ] )
   } else {
     similar_genes = names( sort( correlation, decreasing = T )[ 1:n ] )
   }

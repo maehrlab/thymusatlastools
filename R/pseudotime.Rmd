@@ -103,19 +103,21 @@ pc_as_pt = function( dge, pc.use = 1, orient_var = "eday" ){
 call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_day = NULL ){
   
   attach( monocle_params )
-
+  
   # # Make (m)onocle (obj)ect
   raw_dge = deseuratify_raw_data( dge )
+  rownames(dge@mean.var) %<>% make.names
   geneInfo = data.frame( dge@mean.var[rownames(raw_dge), ] )
   geneInfo$gene = rownames(geneInfo)
-  pd = Biobase::AnnotatedDataFrame( data = dge@data.info[colnames(raw_dge), ])
-  fd = Biobase::AnnotatedDataFrame( data = geneInfo )
+  adf_class = getClassDef("AnnotatedDataFrame", where, package = "Biobase")
+  pd = new(adf_class, data = dge@data.info[colnames(raw_dge), ])
+  fd = new(adf_class, data = geneInfo)
   mobj = monocle::newCellDataSet( as.matrix( raw_dge ), 
                                   phenoData = pd, 
                                   featureData=fd,
                                   lowerDetectionLimit=1,
                                   expressionFamily=VGAM::negbinomial.size( ) )
-
+  
   # # Select variable genes or get from Seurat object
   mobj = monocle::detectGenes( mobj, min_expr = 0 )
   mobj = BiocGenerics::estimateSizeFactors( mobj )
@@ -126,7 +128,7 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
                             ( mean_expression >= log_scale_expr_thresh ) & 
                               ( dispersion_empirical >= excess_disp * dispersion_fit ) )[["gene_id"]]
     cc_genes_macosko = get_macosko_cc_genes()
-    cc_genes_all = Reduce(union, cc_genes_macosko)
+    cc_genes_all = Reduce(union, cc_genes_macosko) %>% sapply( get_ortholog ) %>% unique %>% na.omit
     ordering_genes %<>% as.character %>% setdiff( cc_genes_all )
     expressed_genes = row.names(subset(Biobase::fData(mobj), num_cells_expressed >= 10))
     ordering_genes = intersect(expressed_genes,ordering_genes)
@@ -134,7 +136,7 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   } else {
     mobj = monocle::setOrderingFilter(mobj, dge@var.genes )
   }
-
+  
   # # Save variable genes and parameters
   vgsrp = file.path( results_path, "var_gene_select" )
   dir.create.nice( vgsrp )
@@ -156,13 +158,14 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   # # (For us, batch effects are often completely nested inside of embryonic day, 
   # # so we can't adjust for them without removing the temporal signal.)
   form_str = paste0( "~", paste0( CC_PHASES, collapse = " + " ) )
-  mobj = monocle::reduceDimension(mobj,residualModelFormulaStr=form_str,pseudo_expr=1, reduction_method = reduction_method)
+  library(DDRTree) # required to prevent  "error in DDRTree_reduce_dim: cannot convert to environment"
+  mobj = monocle::reduceDimension(mobj,residualModelFormulaStr=form_str)
   mobj = monocle::orderCells(mobj, num_paths = num_mature_types)
   
   if ( is.null( earliest_day ) ) {
-    earliest_day = monocle::phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric %>% min
+    earliest_day = Biobase::phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric %>% min
   } 
-
+  
   # # This code roots the lineage tree using a horrible horrible hack!  
   # # Monocle crashes when you give orderCells a root_state that is an internal node of the ddrtree graph.
   # # I can't tell which f***ing nodes are internal. So I pick the one I want based on embryonic day,
@@ -170,8 +173,8 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   # # their proximity to it in one of the 2d embeddings. I try rooting the tree at the best
   # # ones first, stopping when something works.
   pct_eq_10_5 = function(x) mean( x == earliest_day )
-  eday  = monocle::phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric
-  state = monocle::phenoData(mobj)[["State"]] %>% as.character %>% as.numeric
+  eday  = Biobase::phenoData(mobj)[["eday"]] %>% as.character %>% as.numeric
+  state = Biobase::phenoData(mobj)[["State"]] %>% as.character %>% as.numeric
   coords = t( mobj@reducedDimS )
   eday_by_state     = aggregate_nice( x = eday,   by = state, FUN = pct_eq_10_5 )
   centroid_by_state = aggregate_nice( x = coords, by = state, FUN = mean )
@@ -191,9 +194,10 @@ call_monocle_on_seurat = function( dge, results_path, monocle_params, earliest_d
   
   
   detach( monocle_params )
-
+  
   return(mobj)  
 }
+
 
 
 #' Transfer data from a pseudotime modeling object to a Seurat object.
