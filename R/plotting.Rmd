@@ -440,10 +440,8 @@ misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
   maybeplot( "nUMI.pdf"      , "nUMI" )
   maybeplot( "branch.pdf"    , "branch" )
   maybeplot( "pseudotime.pdf", "pseudotime" )
-  maybeplot( "day.pdf"       , "eday", 
-             cols.use = Thanksgiving_colors )
-  maybeplot( "edayXgenotype.pdf"   , "edayXgenotype",
-             cols.use = c(colorRampPalette(Thanksgiving_colors)(5), "cadetblue", "purple") )
+  maybeplot( "day.pdf"       , "eday" )
+  maybeplot( "edayXgenotype.pdf"   , "edayXgenotype" )
 
   if( all( c("pseudotime", "eday") %in% AvailableData( dge ) ) ) {
     ggsave( filename = file.path( results_path, "pseudotime_by_eday_box.pdf"),
