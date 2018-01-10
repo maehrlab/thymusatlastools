@@ -9,49 +9,50 @@ output: html_document
 
 ```{r}
 
-#' Characterize genes by behavior over pseudotime, returning cluster assignments and effect sizes. 
+#' Characterize genes by behavior over pseudotime, returning cluster assignments and p values. 
 #' 
 #' @param dge should be a seurat object with a field "pseudotime". 
 #' The field `dge@data` is accessed for expression levels -- for Eric's objects, the units will be log2(1+CP10K).
 #' @param results_path is a character vector showing where to dump the output.
 #' @param num_periods_initial_screen Cells are partitioned into this many pseudotime periods (equal number of cells in each).
 #' They get averaged and each gene's "effect size" is the largest minus the smallest average.
-#' @param prop_genes_keep Genes are ranked by effect size and the top prop_genes_keep*100% are sent into smoothers and kmeans.
+#' @param prop_genes_keep Genes are ranked by effect size and a fraction (prop_genes_keep) are sent into smoothers and kmeans.
 #' @param abcissae_kmeans Gene expression is fed into k-means as a series of predictions at successive time points.
 #' The arguments says how many time points to predict and feed in (if length one) or what time points (if longer).
-#' @param num_clusters Genes are partitioned into this many modules. If NULL (default) the value is selected via the gap statistics and their SEs using the method in the original gap statistic paper.
+#' @param num_clusters Genes are partitioned into this many modules. If NULL (default) the value is selected via the gap statistics and their SEs using the method in the original gap statistic paper:
 #' 
-#'       Tibshirani, R., Walther, G. and Hastie, T. (2001). Estimating the number 
-#'       of data clusters via the Gap statistic. Journal of the Royal Statistical Society B, 63, 411–423.
+#' Tibshirani, R., Walther, G. and Hastie, T. (2001). Estimating the number 
+#' of data clusters via the Gap statistic. Journal of the Royal Statistical Society B, 63, 411–423.
 #'                                 
 #' There's one adjustment: this function will never use just one cluster. It will issue a warning and use 2.
 #'
 #' @return A list with elements:
+#' \itemize{
+#' \item dge: the Seurat object
+#' \item gene_stats: genes with effect sizes and cluster labels.
+#' \item smoothers: fitted regression models, one for each gene.
+#' \item cluster_mod: output from stats::kmeans 
+#' \item gap_stats: output from cluster::clusGap
+#' }
 #'
-#' - dge: the Seurat object
-#' - gene_stats: genes with effect sizes and cluster labels.
-#' - smoothers: fitted regression models, one for each gene.
-#' - cluster_mod: output from stats::kmeans 
-#' - gap_stats: output from cluster::clusGap
-#'
-#' @details This function helps explore gene dynamics over pseudotime. It goes through three main steps:
-#'
-#' - find genes that respond strongly to pseudotime.
-#' - smooth those genes' expression to form an overall pseudotime trend.
-#' - cluster genes based on smoothed expression patterns that have been shifted/scaled to the unit interval.
+#' This function helps explore gene dynamics over pseudotime. It goes through three main steps:
+#' \itemize{
+#' \item find genes that respond strongly to pseudotime.
+#' \item smooth those genes' expression to form an overall pseudotime trend.
+#' \item cluster genes based on smoothed expression patterns that have been shifted/scaled to the unit interval.
+#' }
 #'
 #' @export
 #'
-smooth_and_cluster_genes = function( dge, results_path, 
+smooth_and_cluster_genes = function( dge, results_path, genes.use = get_mouse_tfs(),
                                      num_periods_initial_screen = 20, 
-                                     prop_genes_keep = 0.1,
+                                     pval_cutoff = 0.05,
                                      abcissae_kmeans = 20,
                                      num_clusters = NULL ){
   
-  # # Get data and average within epochs
   dir.create.nice( results_path )
-  cat("Screening out bottom", 100*(1-prop_genes_keep), 
-      "%, ranked by max minus min of average expression within", num_periods_initial_screen, "epochs ...\n")
+  
+  # # Filter genes based on qvals from piecewise linear model 
   cell_data = Seurat::FetchData( dge , "pseudotime" )
   nbreaks = num_periods_initial_screen+1
   breaks = quantile(cell_data$pseudotime, probs = (1:nbreaks - 0.5)/nbreaks)
@@ -60,31 +61,34 @@ smooth_and_cluster_genes = function( dge, results_path,
                           labels = as.character( 1:num_periods_initial_screen ),
                           include.lowest = T, ordered_result = T)
   dge = Seurat::AddMetaData( dge, cell_data[, "period"] %>% matrixify_preserving_rownames, "period" )
-  genes_by_period = t( aggregate_nice( t(dge@data), by = cell_data$period, FUN = mean ) )
-  nonzero = apply( genes_by_period, 1, function(x) any(x>0) )
-  genes_by_period = genes_by_period[nonzero, ]
-  min2max = function(x) (max(x) - min(x))
-  effect_size = apply( genes_by_period, 1, min2max )
-  cutoff = quantile( effect_size, 1-prop_genes_keep )
-  genes_included = names(which(effect_size > cutoff )) 
-  {
-    pdf( file.path( results_path, "effect_sizes.pdf" ) )
-    hist( effect_size, main = paste0("Max minus min average over ", num_periods_initial_screen, " periods"), breaks = 50 )
-    abline( v = cutoff )
-    dev.off()
-  }
+  ssq = function(x) sum((x - mean(x))^2)
+  genes.use = FetchDataZeroPad( dge, genes.use ) %>% apply(2, prop_nz) %>% is_greater_than(0.05) %>% which %>% names
+  expr_mat  = FetchDataZeroPad( dge, genes.use ) %>% as.matrix
+  n = length(dge@cell.names)
+  df1 = n - 1
+  df2 = n - num_periods_initial_screen
+  mss_constant  = apply( expr_mat, 2, ssq ) %>% divide_by(df1)
+  mss_piecewise = aggregate_nice( expr_mat, by = cell_data$period, FUN = ssq  ) %>% t %>% rowSums %>% divide_by(df2)
+  get_p = function(x) pf( x, df1 = df1, df2 = df2, lower.tail = F )
+  pvals = (mss_constant  / mss_piecewise) %>% sapply( get_p )
+  names(pvals) = genes.use
+  genes_included = names(which(pvals < pval_cutoff ))
   
-  cat("Smoothing gene expression over pseudotime...\n")
+  # Smooth gene expression over pseudotime
   pt_data = FetchData( dge, c( "pseudotime", genes_included ) )
   s = mgcv:::s
-  fast_smooth = function( gene ) { 
-    gene = pt_data[[gene]] 
+  fast_smooth = function( i ) { 
+    gene = genes_included[i]
+    expr = pt_data[[gene]] 
     pseudotime = pt_data[["pseudotime"]]
-    mgcv::gam( gene ~ s( pseudotime ), family = mgcv::nb() )
+    if( i %% 50 == 0 ){
+      cat("Smoothing gene ", i, " of ", length( genes_included ), "\n" )
+    }
+    return(  mgcv::gam( expr ~ s( pseudotime ), family = mgcv::nb() ) )
   }
-  smoothers = lapply( genes_included, fast_smooth )
+  smoothers = lapply( seq_along( genes_included ), fast_smooth )
   names( smoothers ) = genes_included
-  
+
   # # Generate kmeans features
   if( length( abcissae_kmeans ) == 0 ) { abcissae_kmeans = 20 }
   if( length( abcissae_kmeans ) == 1 ) {
@@ -93,7 +97,8 @@ smooth_and_cluster_genes = function( dge, results_path,
   kmeans_features = sapply( smoothers, predict, type = "response", 
                             newdata = data.frame( pseudotime = abcissae_kmeans ) )
   kmeans_features = t(kmeans_features)
-  #rescale each gene to the unit interval
+  
+  # # Rescale each gene to the unit interval
   kmeans_features = apply( kmeans_features, MARGIN = 1, FUN = function( x ) (x - min(x)) ) %>% t
   kmeans_features = apply( kmeans_features, MARGIN = 1, FUN = div_by_max ) %>% t
   atae(ncol(kmeans_features), length(abcissae_kmeans))
@@ -141,11 +146,11 @@ smooth_and_cluster_genes = function( dge, results_path,
   rownames(cluster_mod$centers) = NULL
   
   # # Assemble data for export
-  cat("Exporting cluster assignments and effect sizes for genes under study... \n")
+  cat("Exporting cluster assignments and pvals for genes under study... \n")
   to_return = data.frame( gene = genes_included,
-                          max_log2_fc = effect_size[genes_included], 
+                          pval = pvals[genes_included], 
                           cluster = cluster_mod$cluster[genes_included] )
-  to_return = to_return[order( to_return$cluster, -to_return$max_log2_fc ), ]
+  to_return = to_return[order( to_return$cluster, to_return$pval ), ]
   write.table( to_return, file.path(results_path, "gene_pt_dependence_stats.txt"), 
                sep = "\t", quote = F, row.names = F, col.names = T)
   
@@ -181,7 +186,7 @@ facet_plot_gene_clusters = function( dge, results_path,
   data_wide$cluster = c( levels(cluster_mod$cluster), as.character( cluster_mod$cluster ) )
   data_wide$gene = rownames( data_wide )
   
-  data_long = melt( data_wide, id.vars = c( "is_center", "cluster", "gene" ))
+  data_long = reshape2::melt( data_wide, id.vars = c( "is_center", "cluster", "gene" ))
   data_long$unit_scaled_expression = data_long$value
   data_long$pseudotime = abcissae_kmeans[ data_long$variable ]
   data_long$cluster %<>% factor(levels = rev(sort(unique(data_long$cluster))), ordered = T)
@@ -289,8 +294,8 @@ heatmap_gene_clusters = function( dge, results_path,
                                 levels = data_wide_heat$gene[order(data_wide_heat$cluster, -peak_expression)] , 
                                 ordered = T)
   data_wide_heat = data_wide_heat[order(data_wide_heat$gene), ]
-  data_long_heat = melt(data_wide_heat, id.vars = c("gene", "cluster"))
-  data_long_heat %<>% rename( c("variable" = "pseudotime", "value" = "rel_log_expr") )
+  data_long_heat = reshape2::melt(data_wide_heat, id.vars = c("gene", "cluster"))
+  data_long_heat %<>% plyr::rename( replace = c("variable" = "pseudotime", "value" = "rel_log_expr") )
 
   # # Smoothed heatmap
   p_heat_clusters = ggplot(data = data_long_heat ) + 

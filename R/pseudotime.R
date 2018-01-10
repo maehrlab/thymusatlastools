@@ -17,7 +17,6 @@ master_pt = function( dge, results_path, method = "monocle", earliest_day = NULL
                                  excess_disp           = 1,
                                  num_mature_types      = NULL,
                                  reduction_method      = "DDRTree" ), ...  ){
-  # # Run monocle & transfer results
   if( method=="PCA" ){
     dge = pc_as_pt( dge )$dge
   } else if (method=="DPT") {
@@ -27,7 +26,6 @@ master_pt = function( dge, results_path, method = "monocle", earliest_day = NULL
     if( reset_var_genes ){
       dge %<>% MeanVarPlot
     }
-    #dm = destiny::DiffusionMap( data = t( as.matrix( dge@scale.data ) ) )
     dm = destiny::DiffusionMap( data = t( as.matrix( dge@scale.data[dge@var.genes, ] ) ) )
     dpt_out = destiny::DPT( dm, ... )
     dge = add_pseudotime_to_seurat( dge, pt_obj = dpt_out, pt_method = "dpt" )

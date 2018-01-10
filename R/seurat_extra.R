@@ -194,10 +194,11 @@ SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NUL
   if(!is.null(col)){p = p + scale_fill_manual( values = col ) }
   if( label ) { p = p + geom_text( aes( y = at, x = 1.5, label = percent ) ) }
   p = p + 
-    scale_fill_discrete(name="Cell type (Log10 p)",
-                        breaks=cell_types,
-                        labels=paste0(cell_types, " (", round(log10(pvals), 1), ")"))
-
+    scale_fill_manual( name="Cell type (Log10 p)",
+                       values = col, 
+                       breaks=cell_types,
+                       labels=paste0(cell_types, " (", round(log10(pvals), 1), ")"))
+  
   return(p)
 } 
 
