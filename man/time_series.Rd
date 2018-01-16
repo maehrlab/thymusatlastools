@@ -5,7 +5,7 @@
 \title{Return spline-smoothed expression plots over pseudotime.}
 \usage{
 time_series(dge, gene, colour = "eday", main = NULL, x = "pseudotime",
-  col = Thanksgiving_colors)
+  col = Thanksgiving_colors, add_points = T)
 }
 \description{
 Return spline-smoothed expression plots over pseudotime.

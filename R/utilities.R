@@ -160,6 +160,7 @@ save_marker_table = function(X, results_path, testname, remove_rp = FALSE, add_t
 
 distance_sq = function( x, y ) { sum( ( x - y )^2 ) }
 nnz = function(x)(sum(x>0))
+
 #' @export
 prop_nz = function(x)( nnz(x) / length(x))
 
@@ -186,7 +187,7 @@ standardize = function( x, nonpar = F ){
 #' @export
 matrixify_preserving_rownames = function(x) matrix( x,  ncol = 1, dimnames = list( names( x  ), "") )
 #' @export
-vectorize_preserving_rownames = function(x, i = 1) { v = x[, i]; names(v) = rownames(x); return(v) }
+vectorize_preserving_rownames = function(x, i = 1) { v = x[, i]; names(v) = rownames(x); atat(is.vector(v)); return(v) }
 #' @export
 down_idx = function(x){ x[[1]] }
 #' @export
@@ -206,9 +207,7 @@ top_n_preserve_rownames = function( x, ...){
   y[[rownames_tempcol]] = NULL
   return(y)
 }
-# Make sure an adversarial case -- temp column name already taken -- works out ok
-atat( all.equal(  top_n_preserve_rownames(x = data.frame(rownames_tempcol = 10:6), 3, rownames_tempcol), 
-                  data.frame(rownames_tempcol = 10:8) ) )
+
 
 #' Aggregate data.frame by a categorical variable, permissively.
 #'
@@ -298,15 +297,6 @@ strsplit_drop = function(..., drop = TRUE){
   return( x )
 }
 
-#' Split out folder names and return them in reverse order with "" at the end.
-#'
-#' @details split_path("/Users/erickernfeld/Dropbox/2016JULY07scRNAseq/") yields:
-#' "2016JULY07scRNAseq"      "Dropbox"            "erickernfeld"       "Users"      ""
-#' @export
-split_path = function(path) {
-  if (dirname(path) %in% c(".", path)) return(basename(path))
-  return(c(basename(path), split_path(dirname(path))))
-}
 
 #' Take in a function from one finite set of strings to another
 #' in the form of a named vector `map`. (Inputs are names, outputs are values.)

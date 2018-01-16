@@ -1,4 +1,4 @@
 library(testthat)
-library(thymusatlas)
+library(thymusatlastools)
 
-test_check("thymusatlas")
+test_check("thymusatlastools")

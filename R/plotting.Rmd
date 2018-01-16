@@ -12,7 +12,7 @@ output: html_document
 #' Return spline-smoothed expression plots over pseudotime.
 #'
 #' @export
-time_series = function( dge, gene, colour = "eday", main = NULL, x = "pseudotime", col = Thanksgiving_colors ){
+time_series = function( dge, gene, colour = "eday", main = NULL, x = "pseudotime", col = Thanksgiving_colors, add_points = T ){
   atae( length( gene ), 1 )
   if( is.null(main)){ main = paste0( "Expression by ", x)}
     
@@ -24,13 +24,22 @@ time_series = function( dge, gene, colour = "eday", main = NULL, x = "pseudotime
   
   
   my_df = FetchDataZeroPad( dge, vars.all = c( x, gene, colour ) ) 
+  my_df = my_df[order(my_df[[x]]), ]
   atat( all( sapply( my_df, FUN = is.numeric)))
   s = mgcv:::s
+  my_df$smoothed_vals = mgcv::gam( family = mgcv::nb(), 
+                                   formula = as.formula(paste0( gene, " ~ s(", x, ")" )),
+                                   data = my_df ) %>% predict(type = "response")
   p = ggplot( my_df ) + ggtitle( main ) + 
-    geom_smooth( aes_string( x=x, y=gene ), colour = "black",
-                 method = mgcv::gam, formula = y ~ s(x),
-                 method.args = list( family = mgcv::nb() )) +
-    geom_point(  aes_string( x=x, y=gene, colour = colour ) ) 
+    geom_smooth( aes_string( x=x, y=gene ), 
+                 formula = y ~ s(x),
+                 colour = "black",
+                 method = mgcv::gam, 
+                 method.args = list( family = mgcv::nb() )) 
+  if( add_points ){
+    p = p + geom_point( aes_string( x=x, y=gene, colour = colour ) ) 
+  } 
+  p = p + coord_cartesian(ylim=c(0,2*max(my_df$smoothed_vals) + 0.01)) 
   p = p + scale_y_continuous(labels = function(x) sprintf("%4.1f", x) )
   p = p + ggtitle( gene )
   if( !is.null( col ) ){ p = p + scale_color_gradientn( colours = col ) }

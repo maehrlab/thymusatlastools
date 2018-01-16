@@ -2,10 +2,10 @@
 % Please edit documentation in R/pseudotime_plotting.R
 \name{smooth_and_cluster_genes}
 \alias{smooth_and_cluster_genes}
-\title{Characterize genes by behavior over pseudotime, returning cluster assignments and effect sizes.}
+\title{Characterize genes by behavior over pseudotime, returning cluster assignments and p values.}
 \usage{
 smooth_and_cluster_genes(dge, results_path, genes.use = get_mouse_tfs(),
-  num_periods_initial_screen = 20, prop_genes_keep = 0.1,
+  num_periods_initial_screen = 20, pval_cutoff = 0.05,
   abcissae_kmeans = 20, num_clusters = NULL)
 }
 \arguments{
@@ -17,8 +17,6 @@ The field `dge@data` is accessed for expression levels -- for Eric's objects, th
 \item{num_periods_initial_screen}{Cells are partitioned into this many pseudotime periods (equal number of cells in each).
 They get averaged and each gene's "effect size" is the largest minus the smallest average.}
 
-\item{prop_genes_keep}{Genes are ranked by effect size and a fraction (prop_genes_keep) are sent into smoothers and kmeans.}
-
 \item{abcissae_kmeans}{Gene expression is fed into k-means as a series of predictions at successive time points.
 The arguments says how many time points to predict and feed in (if length one) or what time points (if longer).}
 
@@ -28,6 +26,8 @@ Tibshirani, R., Walther, G. and Hastie, T. (2001). Estimating the number
 of data clusters via the Gap statistic. Journal of the Royal Statistical Society B, 63, 411–423.
                                 
 There's one adjustment: this function will never use just one cluster. It will issue a warning and use 2.}
+
+\item{prop_genes_keep}{Genes are ranked by effect size and a fraction (prop_genes_keep) are sent into smoothers and kmeans.}
 }
 \value{
 A list with elements:
@@ -47,5 +47,5 @@ This function helps explore gene dynamics over pseudotime. It goes through three
 }
 }
 \description{
-Characterize genes by behavior over pseudotime, returning cluster assignments and effect sizes.
+Characterize genes by behavior over pseudotime, returning cluster assignments and p values.
 }

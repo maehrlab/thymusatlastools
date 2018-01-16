@@ -140,13 +140,16 @@ SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NUL
     apply(2, percentify) %>% 
     (reshape2::melt) %>% 
     plyr::rename(c("value" = "percent")) 
-  reciprocate = function(n) 1/n
   ncells =  FetchData( dge, "orig.ident" ) %>% table 
   
   # Fill in eday based on sample id
   map_to_eday = setNames(get_metadata()$eday, 
                          get_metadata()$Sample_ID %>% as.character ) 
-  map_to_eday %<>% na.omit %>% (make_name_preserving(as.numeric))
+  
+  map_to_eday %<>% na.omit 
+  nm = names( map_to_eday )
+  map_to_eday %<>% as.numeric
+  names(map_to_eday) = nm
   pct_for_testing$eday = map_to_eday[pct_for_testing$orig.ident %>% as.character] 
   pct_for_testing$eday_sq = pct_for_testing$eday ^ 2
   
