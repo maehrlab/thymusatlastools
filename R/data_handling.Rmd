@@ -221,6 +221,7 @@ dge_merge_list = function(dge_list, allow_barcode_overlap = F){
 }
 
 ```
+
 #### Retrieving our data
 
 These functions help find and access Maehrlab data.

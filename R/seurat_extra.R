@@ -1,4 +1,32 @@
 ## ------------------------------------------------------------------------
+#' Remove missing values from the metadata, issuing a warning if changes are made. 
+#'
+#' @param object Seurat object
+#'
+#' @export
+#'
+FillNA = function( object, filler = "NA" ){
+  varnames = object@data.info %>% names
+  missing_list = c()
+  na2filler = function(x){
+    x[is.na(x)] = filler
+    return(x)
+  }
+  for( var in varnames ){
+    if( any( is.na( object@data.info[[var]] ) ) ){
+      missing_list %<>% c(var)
+      object@data.info[[var]] %<>% na2filler
+    }
+  }
+  if( length( missing_list ) > 0 ){
+    warning( paste0( "Missing values found in these variables: \n", 
+                     paste0( missing_list, collapse = "\n" ),
+                     "\nReplacing with ", filler, " .\n\n" ) )
+  }
+  return( object )
+}
+
+
 #' Get available variable names (genes, identity classes, PCA embeddings, etc)
 #'
 #' @param object Seurat object
@@ -328,16 +356,20 @@ SanitizeGenes = function( dge ){
 #' @param ... Extra params for stat_density2d.
 #'
 #' This function is based on a simple scheme: choose genes similar to the ones specified 
-#' and average them to get past the noise. 
+#' and average them to reduce the noise. 
 #'
 #' @export 
 #'
- TACS = function( dge, gene1, gene2, genesets_predetermined = F, 
-                 return_val = "plot", 
-                 num_genes_add = 100, facet_by = NULL, cutoffs = NULL, 
-                 density = F,
-                 dge_reference = dge, ... ){
-  
+TACS = function( dge, gene1, gene2, cutoffs = NULL, 
+                 return_val = "plot", density = F, 
+                 facet_by = NULL, 
+                 include_panel_with_all = FALSE, 
+                 facet_levels = 
+                   FetchData(dge, facet_by)[[1]] %>% factor %>% levels %>% 
+                   c(rep("all", include_panel_with_all), .),
+                 col = stats::setNames( scales::hue_pal()( length( facet_levels ) - include_panel_with_all ), 
+                                        facet_levels[ ( include_panel_with_all + 1 ) : length( facet_levels )] ),
+                 num_genes_add = 100, genesets_predetermined = F, dge_reference = dge, ... ){
   # Get gene sets to average
   if(genesets_predetermined){
     g1_similar = gene1
@@ -361,13 +393,25 @@ SanitizeGenes = function( dge ){
   dge %<>% AddMetaData(g2_score, col.name = g2_score_name)
   plot_df = FetchData(dge, c(g1_score_name, g2_score_name, facet_by))
   
-
+  # Augment data to form extra panel with everything
+  if( include_panel_with_all ){
+    plot_df_all = plot_df
+    plot_df_all[[facet_by]] = "all"
+    plot_df = rbind(plot_df, plot_df_all)
+    col = c(col, "all"="black")
+  } 
+  # Prepare to facet
+  if(!is.null(facet_by)) {
+    plot_df[[facet_by]] %<>% factor(levels = facet_levels, ordered = T) %>% droplevels
+  }
+  
   # Form plot
   p = ggplot(plot_df) 
   if(density){ 
     p = p + stat_density2d( aes_string( x = g1_score_name, y = g2_score_name, 
                                         colour = facet_by, alpha = "..level.." ), bins = 50 ) +
-      scale_alpha_continuous( range = c(0.4, 1) )
+      scale_alpha_continuous( range = c(0.4, 1) ) + 
+      scale_color_manual(values = col)
   } else {
     p = p + geom_point( aes_string( x=g1_score_name, y=g2_score_name ) ) 
   }
@@ -375,7 +419,6 @@ SanitizeGenes = function( dge ){
   # Facet if desired
   if(!is.null(facet_by)) {
     p = p + facet_wrap(as.formula(paste0("~", facet_by)))
-    plot_df[[facet_by]] %<>% as.factor %>% droplevels
   }
   
   # Add quadrants and percentages

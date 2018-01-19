@@ -135,8 +135,10 @@ time_series_save = function( dge,
 custom_feature_plot = function(dge, colour = NULL, subset_id = NULL, axes = c("tSNE_1", "tSNE_2"), 
                                fix_coords = T, show_axes = F,
                                alpha = 1, cols.use = c("khaki1", "red"), use_rank = F, overplot_adjust = F ){
+  # Remove NA's. They otherwise cause a nasty bug that I haven't pinned down.
+  dge %<>% FillNA
   
-  # Sanitize input -- `aes_string` was choking on a gene with a hyphen (Nkx2-1)
+  # Sanitize input -- `aes_string` may choke on genes with hyphens (e.g. Nkx2-1)
   rownames( dge@data ) = make.names( rownames( dge@data ) )
   rownames( dge@raw.data ) = make.names( rownames( dge@raw.data ) )
   rownames( dge@scale.data ) = make.names( rownames( dge@scale.data ) )
@@ -429,7 +431,7 @@ misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
   results_path = file.path( results_path, "summaries" )
   
   # # Plot summary, checking automatically whether the colour variable is available
-  maybeplot = function( fig_name, colour, ... ){
+  try_to_plot = function( fig_name, colour, ... ){
     if( length( colour ) == 0 || colour %in% AvailableData(dge) ){
       tsne_colored( dge = dge, results_path,
                     fig_name = fig_name, colour = colour, 
@@ -439,18 +441,18 @@ misc_summary_info = function(dge, results_path, clusters_with_names = NULL,
     }
   }
   
-  maybeplot( "plain_gray.pdf", colour = NULL )
-  maybeplot( "replicates.pdf", "rep" )
-  maybeplot( "cell_type.pdf" , "cell_type" )
-  maybeplot( "clusters.pdf"  , "ident" )
-  maybeplot( "classifier.pdf", "classifier_ident" )
-  maybeplot( "samples.pdf"   , "orig.ident" )
-  maybeplot( "nGenes.pdf"    , "nGenes" )
-  maybeplot( "nUMI.pdf"      , "nUMI" )
-  maybeplot( "branch.pdf"    , "branch" )
-  maybeplot( "pseudotime.pdf", "pseudotime" )
-  maybeplot( "day.pdf"       , "eday" )
-  maybeplot( "edayXgenotype.pdf"   , "edayXgenotype" )
+  try_to_plot( "plain_gray.pdf", colour = NULL )
+  try_to_plot( "replicates.pdf", "rep" )
+  try_to_plot( "cell_type.pdf" , "cell_type" )
+  try_to_plot( "clusters.pdf"  , "ident" )
+  try_to_plot( "classifier.pdf", "classifier_ident" )
+  try_to_plot( "samples.pdf"   , "orig.ident" )
+  try_to_plot( "nGenes.pdf"    , "nGenes" )
+  try_to_plot( "nUMI.pdf"      , "nUMI" )
+  try_to_plot( "branch.pdf"    , "branch" )
+  try_to_plot( "pseudotime.pdf", "pseudotime" )
+  try_to_plot( "day.pdf"       , "eday" )
+  try_to_plot( "edayXgenotype.pdf"   , "edayXgenotype" )
 
   if( all( c("pseudotime", "eday") %in% AvailableData( dge ) ) ) {
     ggsave( filename = file.path( results_path, "pseudotime_by_eday_box.pdf"),

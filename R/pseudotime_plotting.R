@@ -5,9 +5,9 @@
 #' @param dge should be a seurat object with a field "pseudotime". 
 #' The field `dge@data` is accessed for expression levels -- for Eric's objects, the units will be log2(1+CP10K).
 #' @param results_path is a character vector showing where to dump the output.
-#' @param num_periods_initial_screen Cells are partitioned into this many pseudotime periods (equal number of cells in each).
-#' They get averaged and each gene's "effect size" is the largest minus the smallest average.
-#' @param prop_genes_keep Genes are ranked by effect size and a fraction (prop_genes_keep) are sent into smoothers and kmeans.
+#' @param num_periods_initial_screen Cells are partitioned into this many pseudotime periods (equal number of cells in each). Initial screening is based on a piecewise linear model where expression is constant within these bins.
+#' @param pval_cutoff Genes are screened by p-value to avoid too much computationally expensive smoothing.
+#' @param do_adjust Logical -- if TRUE, then apply BH correction. 
 #' @param abcissae_kmeans Gene expression is fed into k-means as a series of predictions at successive time points.
 #' The arguments says how many time points to predict and feed in (if length one) or what time points (if longer).
 #' @param num_clusters Genes are partitioned into this many modules. If NULL (default) the value is selected via the gap statistics and their SEs using the method in the original gap statistic paper:
@@ -26,6 +26,7 @@
 #' \item gap_stats: output from cluster::clusGap
 #' }
 #'
+#' 
 #' This function helps explore gene dynamics over pseudotime. It goes through three main steps:
 #' \itemize{
 #' \item find genes that respond strongly to pseudotime.
@@ -37,7 +38,7 @@
 #'
 smooth_and_cluster_genes = function( dge, results_path, genes.use = get_mouse_tfs(),
                                      num_periods_initial_screen = 20, 
-                                     pval_cutoff = 0.05,
+                                     pval_cutoff = 0.05, do_adjust = T, 
                                      abcissae_kmeans = 20,
                                      num_clusters = NULL ){
   
@@ -63,6 +64,9 @@ smooth_and_cluster_genes = function( dge, results_path, genes.use = get_mouse_tf
   get_p = function(x) pf( x, df1 = df1, df2 = df2, lower.tail = F )
   pvals = (mss_constant  / mss_piecewise) %>% sapply( get_p )
   names(pvals) = genes.use
+  if( do_adjust ){
+    pvals %<>% p.adjust()
+  }
   genes_included = names(which(pvals < pval_cutoff ))
   
   # Smooth gene expression over pseudotime
@@ -116,18 +120,8 @@ smooth_and_cluster_genes = function( dge, results_path, genes.use = get_mouse_tf
   
   # Reorder clusters by hierarchical clustering 
   peak_position = apply( cluster_mod$centers, 1, function( x ) mean( which( x > 0.75 ) ) )
-  my_rf = function(hc) as.hclust(stats::reorder(as.dendrogram(hc), order(peak_position)))
-  converter = dendrogram_merge_points( X = cluster_mod$centers, num_desired = 3,
-                                       REORDER_FUN = my_rf,
-                                       PLOT_FUN = function(...){ }, # skip plotting
-                                       results_path = results_path, return_hc = F )
-  hc        = dendrogram_merge_points( X = cluster_mod$centers, num_desired = 3, 
-                                       REORDER_FUN = my_rf,
-                                       PLOT_FUN = function(...){ }, # skip plotting
-                                       results_path = results_path, return_hc = T )
-  preferred_ordering = hc$order
-  # image(cluster_mod$centers[preferred_ordering, ]) # Sneak peek for development
-  
+  preferred_ordering = order( peak_position )
+
   old_given_new = preferred_ordering
   new_given_old = function( k ){ which(k==old_given_new)}
   cluster_mod$cluster  = sapply( cluster_mod$cluster, new_given_old )
@@ -154,10 +148,7 @@ smooth_and_cluster_genes = function( dge, results_path, genes.use = get_mouse_tf
                 abcissae_kmeans = abcissae_kmeans,
                 kmeans_features = kmeans_features,
                 cluster_mod = cluster_mod,
-                gap_stats = gap_stats, 
-                # dendrogram of cluster means
-                converter = converter, 
-                hc = hc ) )
+                gap_stats = gap_stats ) )
 }
 
 #' Draw overlaid line plots of gene clusters from output of `smooth_and_cluster_genes`.
@@ -238,7 +229,12 @@ heatmap_gene_clusters = function( dge, results_path,
   data_wide_heat = sapply( smoothers, predict, type = "response", 
                            newdata = data.frame( pseudotime = abcissae_heatmap ) ) 
   rownames(data_wide_heat) = abcissae_heatmap
-  peak_expression = apply( data_wide_heat, 2, which.max ); names(peak_expression) = names(smoothers)
+  get_expression_peak = function(x){
+    weighted.mean( x = seq_along( x ), w = x * ( standardize(x)>0 ) )
+  }
+  peak_expression = apply( data_wide_heat, 2, get_expression_peak )
+  names(peak_expression) = names(smoothers)
+  
   data_wide_heat = apply(data_wide_heat, 2, standardize) %>% t %>% as.data.frame
   data_wide_heat$gene = names(smoothers)
   data_wide_heat$cluster = cluster_mod$cluster
@@ -282,7 +278,7 @@ heatmap_gene_clusters = function( dge, results_path,
   
   # # Melt data and order rows
   data_wide_heat$gene = factor( data_wide_heat$gene, 
-                                levels = data_wide_heat$gene[order(data_wide_heat$cluster, -peak_expression)] , 
+                                levels = data_wide_heat$gene[order(data_wide_heat$cluster, peak_expression)] , 
                                 ordered = T)
   data_wide_heat = data_wide_heat[order(data_wide_heat$gene), ]
   data_long_heat = reshape2::melt(data_wide_heat, id.vars = c("gene", "cluster"))

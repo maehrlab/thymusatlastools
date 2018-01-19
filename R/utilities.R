@@ -4,7 +4,7 @@
 #' 
 #'@export
 get_rene_markers = function(){
-  data(handpicked_markers)
+  data( handpicked_markers, envir = environment() )
   return( handpicked_markers )
 }
 
@@ -12,7 +12,7 @@ get_rene_markers = function(){
 #'
 #'@export
 get_cTEC_mTEC_genes = function(){
-  data(cTEC_mTEC_data_driven)
+  data( cTEC_mTEC_data_driven, envir = environment() )
   return( cTEC_mTEC_data_driven )
 }
 
@@ -20,7 +20,7 @@ get_cTEC_mTEC_genes = function(){
 #'
 #'@export
 get_ramilowski = function(){
-  data(ramilowski)
+  data( ramilowski, envir = environment() )
   return( ramilowski )
 }
 
@@ -28,7 +28,7 @@ get_ramilowski = function(){
 #'
 #'@export
 get_macosko_cc_genes = function( case = "Capital" ){
-  data(cc_genes)
+  data( cc_genes, envir = environment() )
   return(cc_genes)
 }
 
@@ -36,7 +36,7 @@ get_macosko_cc_genes = function( case = "Capital" ){
 #'
 #'@export
 get_mouse_tfs = function(){
-  data(mouse_tfs)
+  data( mouse_tfs, envir = environment() )
   return( mouse_tfs )
 }
 
@@ -44,7 +44,7 @@ get_mouse_tfs = function(){
 #'
 #'@export
 get_poised_genes = function(){
-  data(poised_genes)
+  data( poised_genes, envir = environment() )
   return( poised_genes )
 }
 

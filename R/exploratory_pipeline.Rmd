@@ -805,6 +805,7 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
                                regress_out = thymusatlastools::get_macosko_cc_genes() %>% names,
                                PLOTFUN = function(dge, results_path){return()}, ... ){
   atat(is.data.frame( all_params ) )
+  dge %<>% FillNA
   required_params = c( "num_pc", "clust_granularities_as_string",
                        "excess_var_cutoff","log_expr_cutoff" )
   atat( all( required_params %in% names( all_params ) ) )
