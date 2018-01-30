@@ -4,7 +4,7 @@
 \alias{add_tcr}
 \title{Add T-cell receptor expression from a separate alignment process.}
 \usage{
-add_tcr(dge, metadata = thymusatlasdataprivate::get_metadata())
+add_tcr(dge, metadata = get_metadata())
 }
 \arguments{
 \item{dge}{Seurat object}

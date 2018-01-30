@@ -273,35 +273,8 @@ add_maehrlab_metadata = function( dge, variable_to_add, new_name = NULL, NA_stri
   return( dge )
 }
 
-#' Get digital gene expression matrices from either thymusatlasdataprivate or thymusatlasdatapublic.
-#'
-#' If you have both available, thymusatlasdataprivate is preferred.
-#'
-#' @export
-#'
-load_thymus_profiling_data = function( ..., verbose = F ){
-  
-  
-  #Try private 
-  private = tryCatch( thymusatlasdataprivate::load_maehrlab_private_data( ... ), 
-                       error = function(e) my_err(package_tried = "thymusatlasdataprivate"))
-  if( !identical( private, "not_available" )){
-    return(private)
-  } 
-  
-  #Try public 
-  public = tryCatch( thymusatlasdatapublic::load_thymus_profiling_data( ... ), 
-                     error = function(e) my_err(package_tried = "thymusatlasdatapublic"))
-  if( !identical( private, "not_available" )){
-    return(public)
-  }  
-  
-  #Give up
-  stop(paste0("You may need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n", 
-              "the Maehr lab data. If they are installed, use verbose=T or call them directly to see the error. \n"))
 
-}
-
+## ------------------------------------------------------------------------
 
 #' Add T-cell receptor expression from a separate alignment process. 
 #'
@@ -311,7 +284,7 @@ load_thymus_profiling_data = function( ..., verbose = F ){
 #' 
 #' @export
 #'
-add_tcr = function( dge, metadata = thymusatlasdataprivate::get_metadata() ){
+add_tcr = function( dge, metadata = get_metadata() ){
   
   # Filter metadata down to essentials
   samples_needed = levels(FetchData(dge, "orig.ident")[[1]])
@@ -392,4 +365,121 @@ add_tcr = function( dge, metadata = thymusatlasdataprivate::get_metadata() ){
   return( dge )
 }
 
+
+## ------------------------------------------------------------------------
+#' Load digital gene expression matrices from Maehrlab dropbox.
+#'
+#' @param sample_ids Either "all" or sample IDs as given by `get_sample_groups` and `get_data_by_replicates`.
+#' @param test_mode If true, return teensy little datasets with 50 cells and 200 genes. 
+#' @param lincRNA Deprecated.
+#' @param convert_all_to_mouse Deprecated.
+#' @details There is one array for every sample ID you pass in. Each array has one column per gene and one row per cell. 
+#' The column names are sample id's concatenated onto cell barcodes, separated by the infix `"|"`. 
+#' This allows sample ID's to contain underscores without confusing Seurat when it goes to fetch the sample ID for `orig.ident`. 
+#'@export
+load_thymus_profiling_data = function( sample_ids = "all", 
+                                       test_mode = F, convert_all_to_mouse = NULL, 
+                                       lincRNA = F ){
+  if(!is.null(convert_all_to_mouse)){
+    warning( "`convert_all_to_mouse` arg is deprecated and has no effect. Use `thymusatlastools::convert_species_dge`.")
+  }
+  
+  # # Subset metadata down to just the desired samples
+  metadata = get_metadata()
+  
+  if( !identical( sample_ids, "all" ) ){
+    metadata = subset( metadata, Sample_ID %in% sample_ids)
+  }
+  missing = setdiff( sample_ids, metadata$Sample_ID )
+  if(length(missing) > 0){
+      warning( "\n There are no records of these sample IDs: \n"); cat( missing ); cat("\n")
+  }
+  
+  # # Check dge file availability 
+  file_type_header = ifelse( lincRNA, "lincRNA_dge_path", "dge_path" )	
+  available = file.exists( metadata[[ file_type_header ]] ) 
+  sample_ids = as.character( metadata[["Sample_ID"]] )
+  unavailable_samples_str = paste0( sample_ids[!available], collapse = "\n" )
+  available_samples_str   = paste0( sample_ids[ available], collapse = "\n" )
+  if(!all(available)){
+    warning( "\n Files unavailable for these samples: \n"); cat( unavailable_samples_str ); cat("\n")
+  }
+  metadata = metadata[ available, ]
+  runs_to_return = as.list( metadata[["Sample_ID"]] )
+  names( runs_to_return ) = runs_to_return
+  
+  # # Fetch data
+  for( i in seq_along( runs_to_return ) ){
+    print( paste( "Loading dataset", metadata[i, "Sample_ID"] ) )
+    readpath = metadata[i, file_type_header]
+    # Adapt to whichever pipeline created the data
+    reddit = F
+    if ( metadata[i, "pipeline"] %in% c("10X", "cellranger" ) ){
+      dge = OldSeurat::Read10X( data.dir = readpath )
+      reddit = T
+    } 
+    if( metadata[i, "pipeline"] == "dropseq" ){
+      dge = read.table( file = readpath, sep="\t", header=TRUE, row.names=1 )
+      reddit = T
+    } 
+    # In case pipeline creating data is not known
+    if ( !reddit | ! ( "pipeline" %in% names( metadata ) ) ) {
+      warning(paste0("For sample ",
+                     metadata[i, "Sample_ID"], 
+                     " , unrecognized enry in pipeline field (or no pipeline field). ", 
+                     "I'll do my best, but check the results."))
+      dge = matrix()
+      if( file.info( readpath )$isdir ){
+        cat("Reading \n", readpath, "\n as 10X.\n")
+        dge = try( OldSeurat::Read10X( data.dir = readpath ) )
+      } else {
+        cat("Reading \n", readpath, "\n as dropseq.\n")
+        dge = try( read.table( file = readpath, sep="\t", header=TRUE, row.names=1 ) )
+      }
+    }
+    
+    # Append sample ID to barcodes
+    colnames( dge ) = paste( colnames( dge ), metadata[i, "Sample_ID"], sep = "|" )
+    
+    # Downsample if in test mode
+    if( test_mode ){
+      genes_included = c( rownames( dge )[1001:1200] )
+      dge = dge[genes_included, 1:50]
+    }
+    # Ensure type is predictable
+    runs_to_return[[i]] = as.matrix( dge )
+  }
+  assertthat::are_equal( length( runs_to_return ), length( sample_ids) ) 
+  return( runs_to_return )
+}
+
+## ------------------------------------------------------------------------
+#' Get digital gene expression matrices from either thymusatlasdataprivate or thymusatlasdatapublic.
+#'
+#' If you have both available, thymusatlasdataprivate is preferred.
+#'
+#' @export
+#'
+# load_thymus_profiling_data = function( ..., verbose = F ){
+#   
+#   
+#   #Try private 
+#   private = tryCatch( thymusatlasdataprivate::load_maehrlab_private_data( ... ), 
+#                        error = function(e) my_err(package_tried = "thymusatlasdataprivate"))
+#   if( !identical( private, "not_available" )){
+#     return(private)
+#   } 
+#   
+#   #Try public 
+#   public = tryCatch( thymusatlasdatapublic::load_thymus_profiling_data( ... ), 
+#                      error = function(e) my_err(package_tried = "thymusatlasdatapublic"))
+#   if( !identical( private, "not_available" )){
+#     return(public)
+#   }  
+#   
+#   #Give up
+#   stop(paste0("You may need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n", 
+#               "the Maehr lab data. If they are installed, use verbose=T or call them directly to see the error. \n"))
+# 
+# }
 

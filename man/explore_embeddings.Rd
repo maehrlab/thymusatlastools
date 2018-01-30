@@ -5,7 +5,7 @@
 \title{Quickly explore many parameter settings}
 \usage{
 explore_embeddings(dge, results_path, all_params, test_mode = F,
-  whitelist = AvailableData(dge), blacklist = c(),
+  whitelist = AvailableData(dge), blacklist = c(), knn_smooth_k = 0,
   regress_out = thymusatlastools::get_macosko_cc_genes() \%>\% names,
   PLOTFUN = function(dge, results_path) {     return() }, ...)
 }
@@ -30,6 +30,8 @@ explore_embeddings(dge, results_path, all_params, test_mode = F,
 \item{blacklist}{Genes to exclude. Typically nothing (default), but could be cell cycle genes (try 
 \code{ thymusatlastools::get_macosko_cc_genes() \%>\% Reduce(f=union) } or ribosomal 
 subunit genes. Make sure you get the species right!}
+
+\item{knn_smooth_k}{If <=0, no smoothing. If >0, fill scale.data using Wagner et al's knn smoothing method (followed by standardization).}
 
 \item{regress_out}{Covariates to regress out via Seurat::RegressOut. Defaults to the cell-cycle scores that are provided by thymusatlastools::add_cc_score.}
 

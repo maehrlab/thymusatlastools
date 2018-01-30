@@ -5,7 +5,7 @@
 \title{Characterize genes by behavior over pseudotime, returning cluster assignments and p values.}
 \usage{
 smooth_and_cluster_genes(dge, results_path, genes.use = get_mouse_tfs(),
-  num_periods_initial_screen = 20, pval_cutoff = 0.05,
+  num_periods_initial_screen = 20, pval_cutoff = 0.05, do_adjust = T,
   abcissae_kmeans = 20, num_clusters = NULL)
 }
 \arguments{
@@ -14,8 +14,11 @@ The field `dge@data` is accessed for expression levels -- for Eric's objects, th
 
 \item{results_path}{is a character vector showing where to dump the output.}
 
-\item{num_periods_initial_screen}{Cells are partitioned into this many pseudotime periods (equal number of cells in each).
-They get averaged and each gene's "effect size" is the largest minus the smallest average.}
+\item{num_periods_initial_screen}{Cells are partitioned into this many pseudotime periods (equal number of cells in each). Initial screening is based on a piecewise linear model where expression is constant within these bins.}
+
+\item{pval_cutoff}{Genes are screened by p-value to avoid too much computationally expensive smoothing.}
+
+\item{do_adjust}{Logical -- if TRUE, then apply BH correction.}
 
 \item{abcissae_kmeans}{Gene expression is fed into k-means as a series of predictions at successive time points.
 The arguments says how many time points to predict and feed in (if length one) or what time points (if longer).}
@@ -26,8 +29,6 @@ Tibshirani, R., Walther, G. and Hastie, T. (2001). Estimating the number
 of data clusters via the Gap statistic. Journal of the Royal Statistical Society B, 63, 411–423.
                                 
 There's one adjustment: this function will never use just one cluster. It will issue a warning and use 2.}
-
-\item{prop_genes_keep}{Genes are ranked by effect size and a fraction (prop_genes_keep) are sent into smoothers and kmeans.}
 }
 \value{
 A list with elements:
@@ -38,6 +39,7 @@ A list with elements:
 \item cluster_mod: output from stats::kmeans 
 \item gap_stats: output from cluster::clusGap
 }
+
 
 This function helps explore gene dynamics over pseudotime. It goes through three main steps:
 \itemize{

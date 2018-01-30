@@ -192,7 +192,7 @@ SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NUL
     pvals[cl] = test_result$`Pr(>F)`[[2]]
   }
   
-  #### Plottting
+  #### Plotting
   # Get percentages by facet
   X = FetchData( dge, c( ident.use, facet_by )) %>% 
     table %>% 

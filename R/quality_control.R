@@ -52,6 +52,44 @@ check_xist_pure = function( raw_dge, rep_name, results_path ){
 }
 
 
+#' Assemble very basic summary stats: total UMIs, genes, and cells.
+#'
+#' @export
+#'
+save_depth_stats = function(results_path, samples = NULL, metadata = get_metadata()) {
+  metadata %<>% subset( files_available == "yes" )
+  if(!is.null( samples )){
+    metadata %<>% subset( Sample_ID %in% samples )
+  }
+  all_runs = metadata$Sample_ID %>% as.list
+  names( all_runs ) = all_runs
+  get1 = function(sample) load_thymus_profiling_data(sample)[[1]]
+  dimsum = function(X) c(dim(X), sum(X))
+  basic_stats = data.frame( Reduce( rbind, lapply( all_runs, function(s) {dimsum( get1( s ) )} ) ) )
+  colnames(basic_stats) = c( "transcripts", "cells", "UMIs" )
+  rownames(basic_stats) = basic_stats$Sample_ID = unlist(all_runs)
+  write.table( basic_stats, file = file.path( results_path, "basics_stats.txt" ),
+               quote = F, row.names = F, col.names = T, sep = "\t")
+  return(basic_stats)
+}
+
+#' Screen for female embryos using simple stats.
+#'
+#' @export
+#'
+check_xist_all = function( results_path, samples = NULL, metadata = get_metadata() ){
+  if(!is.null(samples)){
+    metadata %<>% subset( Sample_ID %in% samples )
+  }
+  # # Load the data; check for xist versus y chromosome genes
+  all_runs = subset(metadata, files_available == "yes", select = "Sample_ID", drop = T) 
+  for( rep_name in all_runs ){
+    check_xist_pure( raw_dge = load_thymus_profiling_data( sample_ids = rep_name, test_mode = F )[[1]], 
+                                       rep_name = rep_name, 
+                                       results_path = file.path( results_path, "Xist_check" ) ) 
+  }
+}
+
 ## ------------------------------------------------------------------------
 #' Consistently label replicates
 #'

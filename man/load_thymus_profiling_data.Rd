@@ -2,10 +2,25 @@
 % Please edit documentation in R/data_handling.R
 \name{load_thymus_profiling_data}
 \alias{load_thymus_profiling_data}
-\title{Get digital gene expression matrices from either thymusatlasdataprivate or thymusatlasdatapublic.}
+\title{Load digital gene expression matrices from Maehrlab dropbox.}
 \usage{
-load_thymus_profiling_data(..., verbose = F)
+load_thymus_profiling_data(sample_ids = "all", test_mode = F,
+  convert_all_to_mouse = NULL, lincRNA = F)
+}
+\arguments{
+\item{sample_ids}{Either "all" or sample IDs as given by `get_sample_groups` and `get_data_by_replicates`.}
+
+\item{test_mode}{If true, return teensy little datasets with 50 cells and 200 genes.}
+
+\item{convert_all_to_mouse}{Deprecated.}
+
+\item{lincRNA}{Deprecated.}
 }
 \description{
-If you have both available, thymusatlasdataprivate is preferred.
+Load digital gene expression matrices from Maehrlab dropbox.
+}
+\details{
+There is one array for every sample ID you pass in. Each array has one column per gene and one row per cell. 
+The column names are sample id's concatenated onto cell barcodes, separated by the infix `"|"`. 
+This allows sample ID's to contain underscores without confusing Seurat when it goes to fetch the sample ID for `orig.ident`.
 }

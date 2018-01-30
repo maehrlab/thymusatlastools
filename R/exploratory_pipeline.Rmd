@@ -145,19 +145,47 @@ is_rp = function( genes ){
   return(p1|p2)
 }
 
+#' Decide if genes are mitochondrial. Currently uses a crude "grep mt".
+#'
+#' @export
+#'
+is_mt = function( genes ){
+  genes %<>% toupper
+  p = substring(genes, 1, 3) %in% c("MT-", "MT.")
+  return(p)
+}
+
+
 #' Quantify ribosomal transcript content cell by cell.
 #'
 #' @export
 #'
-add_rp_percentage = function( dge ){
-  rp_counts = aggregate_nice( dge@raw.data, by = is_rp( rownames( dge@raw.data ) ), FUN = sum ) 
-  rp_counts %<>% t %>% as.data.frame 
-  cells = rownames(rp_counts)
-  rp_counts %<>% plyr::rename(replace = c("TRUE"="ribo_nUMI_pct", "FALSE"="non_ribo_nUMI_pct"))
-  rownames(rp_counts) = cells
-  dge = AddMetaData( dge, metadata = vectorize_preserving_rownames(rev(rp_counts)), col.name = "ribo_nUMI_pct" )
+add_rp_percentage = function(dge) add_rp_mt_percentage(dge )
+
+#' Quantify ribosomal and mitochondrial transcript content cell by cell.
+#'
+#' @export
+#'
+add_rp_mt_percentage = function( dge ){
+  nUMI = dge %>% FetchData("nUMI") %>% extract2(1) 
+  sum_umis = function(predicate){
+    raw = dge@raw.data[rownames(dge@data), colnames(dge@data)]
+    genes = rownames( raw )
+    x = dge@raw.data[ predicate( genes ), ] %>% colSums
+    atat( all( x < nUMI ) ) 
+    return(x)
+  }
+  nUMI_rp = sum_umis(predicate = is_rp)
+  nUMI_mt = sum_umis(predicate = is_mt)
+  to_add = data.frame( nUMI_mt = nUMI_mt,
+                       nUMI_rp = nUMI_rp, 
+                       mt_nUMI_pct   = nUMI_mt / nUMI,
+                       ribo_nUMI_pct = nUMI_rp / nUMI, 
+                       row.names = dge@cell.names )
+  dge %<>% AddMetaData( metadata = to_add )
   return(dge)
 }
+
 
 #' Quantify cell-cycle activity by phase.
 #'
@@ -788,6 +816,7 @@ screen_receptor_ligand = function( is_expressed, results_path ){
 #' \item "excess_var_cutoff": Numeric. Params for variable gene selection. Units are in multiples of the local median coefficient of variation, i.e. 0.8 means a gene is included if it exceeds 80% of the local median of the CV, binning based on expression level.
 #' \item "log_expr_cutoff": Numeric. Genes below this expression level are excluded. Done by averaging the '@data' slot (so, log1p-scale expression).
 #' }
+#' @param knn_smooth_k If <=0, no smoothing. If >0, fill scale.data using Wagner et al's knn smoothing method (followed by standardization).
 #' @param test_mode If true, does a trial run on a small subset of the data.
 #' @param whitelist Everything not on this list is excluded.
 #' @param blacklist Genes to exclude. Typically nothing (default), but could be cell cycle genes (try 
@@ -802,6 +831,7 @@ screen_receptor_ligand = function( is_expressed, results_path ){
 explore_embeddings = function( dge, results_path, all_params, test_mode = F, 
                                whitelist = AvailableData(dge), 
                                blacklist = c(), 
+                               knn_smooth_k = 0,
                                regress_out = thymusatlastools::get_macosko_cc_genes() %>% names,
                                PLOTFUN = function(dge, results_path){return()}, ... ){
   atat(is.data.frame( all_params ) )
@@ -830,8 +860,10 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
     dir.create.nice(rp_mini)
 
     # # remove cc variation, or whatever is in regress_out 
-    dge = OldSeurat::RegressOut( object = dge, 
-                                 latent.vars = regress_out )
+    if( length( regress_out ) > 0 ){
+      dge = OldSeurat::RegressOut( object = dge, 
+                                   latent.vars = regress_out )
+    }
     
     # # select genes, confining to whitelist and excluding blacklist.
     dge = var_gene_select( dge, results_path = rp_mini, test_mode,
@@ -840,10 +872,17 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
     dge@var.genes %<>% intersect( whitelist )
     dge@var.genes %<>% setdiff( blacklist )
     
+    # knn smoothing based on Wagner et al's paper
+    # "K-nearest neighbor smoothing for high-throughput single-cell RNA-Seq data"
+    if(knn_smooth_k>0){
+      dge@scale.data = knn_smoother( dge %>% deseuratify_raw_data(), k = knn_smooth_k ) %>% apply(2, standardize)
+    }
+    
     # Reduce dimension and cluster cells
-    dge = OldSeurat::PCA(dge, pc.genes = dge@var.genes, do.print = F) 
+    dge = OldSeurat::PCAFast(dge, pc.genes = dge@var.genes, pcs.compute = param_row[["num_pc"]],
+                             do.print = F, pcs.print = F ) 
     pc.use = 1:param_row[["num_pc"]]
-    dge = OldSeurat::RunTSNE(dge, dims.use = pc.use, do.fast = T) 
+    dge = OldSeurat::RunTSNE(dge, dims.use = pc.use, do.fast = T, check_duplicates = FALSE) 
     dge = cluster_wrapper(dge, results_path = rp_mini, test_mode = test_mode, 
                           method = param_row[["clust_method"]],
                           granularities_as_string = param_row[["clust_granularities_as_string"]],
@@ -852,7 +891,7 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
     # # save plots and summaries 
     misc_summary_info( dge, results_path = rp_mini)
     saveRDS( dge, file.path( rp_mini, "dge.data") ) 
-    top_genes_by_pc(   dge, results_path = rp_mini, test_mode)
+    top_genes_by_pc(   dge, results_path = rp_mini, test_mode, num_pc = param_row[["num_pc"]])
     PLOTFUN( dge, rp_mini, ... )
     prev_param_row = param_row
   }
