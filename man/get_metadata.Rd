@@ -2,10 +2,10 @@
 % Please edit documentation in R/data_handling.R
 \name{get_metadata}
 \alias{get_metadata}
-\title{Get metadata from the thymusatlasdataprivate or thymusatlasdatapublic packages.}
+\title{Get thymus atlas sample metadata.}
 \usage{
-get_metadata(..., verbose = F)
+get_metadata()
 }
 \description{
-If you have both installed, thymusatlasdataprivate is preferred.
+Get thymus atlas sample metadata.
 }

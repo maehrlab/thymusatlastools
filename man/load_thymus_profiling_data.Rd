@@ -8,7 +8,7 @@ load_thymus_profiling_data(sample_ids = "all", test_mode = F,
   convert_all_to_mouse = NULL, lincRNA = F)
 }
 \arguments{
-\item{sample_ids}{Either "all" or sample IDs as given by `get_sample_groups` and `get_data_by_replicates`.}
+\item{sample_ids}{Sample IDs to include.}
 
 \item{test_mode}{If true, return teensy little datasets with 50 cells and 200 genes.}
 

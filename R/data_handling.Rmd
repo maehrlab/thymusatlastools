@@ -362,7 +362,7 @@ Data loading
 ```{r}
 #' Load digital gene expression matrices from Maehrlab dropbox.
 #'
-#' @param sample_ids Either "all" or sample IDs as given by `get_sample_groups` and `get_data_by_replicates`.
+#' @param sample_ids Sample IDs to include.
 #' @param test_mode If true, return teensy little datasets with 50 cells and 200 genes. 
 #' @param lincRNA Deprecated.
 #' @param convert_all_to_mouse Deprecated.
@@ -379,14 +379,15 @@ load_thymus_profiling_data = function( sample_ids = "all",
   
   # # Subset metadata down to just the desired samples
   metadata = get_metadata()
-  
-  if( !identical( sample_ids, "all" ) ){
-    metadata = subset( metadata, Sample_ID %in% sample_ids)
-  }
   missing = setdiff( sample_ids, metadata$Sample_ID )
   if(length(missing) > 0){
       warning( "\n There are no records of these sample IDs: \n"); cat( missing ); cat("\n")
   }
+  
+  # Keep only samples in both, preserving order of arguments. 
+  sample_ids = sample_ids[sample_ids %in% metadata$Sample_ID]
+  rownames(metadata) = metadata$Sample_ID
+  metadata = metadata[sample_ids, ]
   
   # # Check dge file availability 
   file_type_header = ifelse( lincRNA, "lincRNA_dge_path", "dge_path" )	
@@ -416,11 +417,12 @@ load_thymus_profiling_data = function( sample_ids = "all",
       reddit = T
     } 
     # In case pipeline creating data is not known
-    if ( !reddit | ! ( "pipeline" %in% names( metadata ) ) ) {
+    if ( !reddit ) {
       warning(paste0("For sample ",
                      metadata[i, "Sample_ID"], 
-                     " , unrecognized enry in pipeline field (or no pipeline field). ", 
-                     "I'll do my best, but check the results."))
+                     " , unrecognized entry in pipeline field:\n", 
+                     metadata[i, "pipeline"], "\n",
+                     "I'll do my best, but check the results.\n"))
       dge = matrix()
       if( file.info( readpath )$isdir ){
         cat("Reading \n", readpath, "\n as 10X.\n")
@@ -452,8 +454,8 @@ load_thymus_profiling_data = function( sample_ids = "all",
 #' @export
 #'
 get_metadata = function() {
-  PATH_TO_DATA_PRIVATE = file.path( "~", "Dropbox", "2016JULY07scRNAseq", "data", "DROPseq_stats_working.csv" )
-  if( exists(get_metadata_path) ){
+  PATH_TO_METADATA_PRIVATE = file.path( "~", "Dropbox", "2016JULY07scRNAseq", "data", "DROPseq_stats_working.csv" )
+  if( exists("get_metadata_path") ){
     read.csv( get_metadata_path(), stringsAsFactors = F )
   } else if( file.exists( PATH_TO_METADATA_PRIVATE ) ){
     read.csv( PATH_TO_METADATA_PRIVATE, stringsAsFactors = F )

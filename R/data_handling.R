@@ -206,38 +206,6 @@ dge_merge_list = function(dge_list, allow_barcode_overlap = F){
 
 ## ------------------------------------------------------------------------
 
-#' Print errors or warnings but return a predictable 'not_available'.
-#' 
-#' Helps wrap calls to thymusatlasdataprivate and thymusatlasdatapublic in tryCatch blocks.
-#'
-my_err = function( e, package_tried, err_or_warn = "Error", verbose = T ){
-  if(verbose){
-    cat(err_or_warn, " received while trying ", package_tried, "::get_metadata:\n", e, "\n")
-  }
-  return("not_available")
-}
-
-#' Get metadata from the thymusatlasdataprivate or thymusatlasdatapublic packages.
-#'
-#' If you have both installed, thymusatlasdataprivate is preferred.
-#' 
-#' @export
-#'
-get_metadata = function( ..., verbose = F ){
-  public  = tryCatch( thymusatlasdatapublic::get_metadata( ... ),
-                     error = function(e) my_err(package_tried = "thymusatlasdatapublic", verbose = verbose))
-  private = tryCatch(thymusatlasdataprivate::get_metadata( ... ), 
-                     error = function(e) my_err(package_tried = "thymusatlasdatapublic", verbose = verbose))
-  if( identical(public, "not_available" ) && identical(private, "not_available" )){
-    stop(paste0("You may need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n", 
-                "the Maehr lab metadata. If they are installed, use verbose=T or call them directly to see the error. \n"))
-  } else if( !identical( private, "not_available" )){
-    return(private)
-  } else {
-    return(public)
-  }
-}
-
 #' Given a Seurat object, add information about our experiments.
 #'
 #' @details It looks in `get_metadata()` for a column named `variable_to_add` and adds 
@@ -250,17 +218,13 @@ get_metadata = function( ..., verbose = F ){
 add_maehrlab_metadata = function( dge, variable_to_add, new_name = NULL, NA_strings = c("NA", ""),
                                   maehrlab_metadata = get_metadata() ){
   
-  unknown_sample = !all(levels( dge@data.info$orig.ident ) %in% maehrlab_metadata[["Sample_ID"]] )
-  unknown_var =    !variable_to_add %in% names( maehrlab_metadata ) 
-  if( unknown_sample || unknown_var ){
-    stop(paste( "Metadata not found. Solutions:\n",
-                "1) To list available metadata fields and sample IDs, try     \n",
-                "         names(thymusatlasdatapublic::get_metadata())        \n",
-                "    or                                                       \n",
-                "        thymusatlasdatapublic::get_metadata()[['Sample_ID']] \n",
-                "2) the `maehrlab_metadata` argument defaults to `thymusatlasdatapublic::get_metadata()`.\n",
-                "    If you have access to thymusatlasdataprivate::get_metadata(), try that instead.") )
+  if( !all(levels( dge@data.info$orig.ident ) %in% maehrlab_metadata[["Sample_ID"]] ) ){
+    stop( "Some sample id's not recognized. Look at unique(get_metadata()[['Sample_ID']]) to see what's available." )
+  } 
+  if( !variable_to_add %in% names( maehrlab_metadata ) ){
+    stop( "Some variables not recognized. Look at colnames(get_metadata()) to see what's available." )
   }
+  
   data_by_sample = maehrlab_metadata[[variable_to_add]]
   data_by_sample[ data_by_sample %in% NA_strings ] = NA
   names( data_by_sample ) = maehrlab_metadata[["Sample_ID"]]
@@ -369,7 +333,7 @@ add_tcr = function( dge, metadata = get_metadata() ){
 ## ------------------------------------------------------------------------
 #' Load digital gene expression matrices from Maehrlab dropbox.
 #'
-#' @param sample_ids Either "all" or sample IDs as given by `get_sample_groups` and `get_data_by_replicates`.
+#' @param sample_ids Sample IDs to include.
 #' @param test_mode If true, return teensy little datasets with 50 cells and 200 genes. 
 #' @param lincRNA Deprecated.
 #' @param convert_all_to_mouse Deprecated.
@@ -386,14 +350,15 @@ load_thymus_profiling_data = function( sample_ids = "all",
   
   # # Subset metadata down to just the desired samples
   metadata = get_metadata()
-  
-  if( !identical( sample_ids, "all" ) ){
-    metadata = subset( metadata, Sample_ID %in% sample_ids)
-  }
   missing = setdiff( sample_ids, metadata$Sample_ID )
   if(length(missing) > 0){
       warning( "\n There are no records of these sample IDs: \n"); cat( missing ); cat("\n")
   }
+  
+  # Keep only samples in both, preserving order of arguments. 
+  sample_ids = sample_ids[sample_ids %in% metadata$Sample_ID]
+  rownames(metadata) = metadata$Sample_ID
+  metadata = metadata[sample_ids, ]
   
   # # Check dge file availability 
   file_type_header = ifelse( lincRNA, "lincRNA_dge_path", "dge_path" )	
@@ -414,7 +379,7 @@ load_thymus_profiling_data = function( sample_ids = "all",
     readpath = metadata[i, file_type_header]
     # Adapt to whichever pipeline created the data
     reddit = F
-    if ( metadata[i, "pipeline"] %in% c("10X", "cellranger" ) ){
+    if ( metadata[i, "pipeline"] %in% c("10X", "cellranger", "umitools", "umi_tools" ) ){
       dge = OldSeurat::Read10X( data.dir = readpath )
       reddit = T
     } 
@@ -423,11 +388,12 @@ load_thymus_profiling_data = function( sample_ids = "all",
       reddit = T
     } 
     # In case pipeline creating data is not known
-    if ( !reddit | ! ( "pipeline" %in% names( metadata ) ) ) {
+    if ( !reddit ) {
       warning(paste0("For sample ",
                      metadata[i, "Sample_ID"], 
-                     " , unrecognized enry in pipeline field (or no pipeline field). ", 
-                     "I'll do my best, but check the results."))
+                     " , unrecognized entry in pipeline field:\n", 
+                     metadata[i, "pipeline"], "\n",
+                     "I'll do my best, but check the results.\n"))
       dge = matrix()
       if( file.info( readpath )$isdir ){
         cat("Reading \n", readpath, "\n as 10X.\n")
@@ -453,33 +419,83 @@ load_thymus_profiling_data = function( sample_ids = "all",
   return( runs_to_return )
 }
 
-## ------------------------------------------------------------------------
-#' Get digital gene expression matrices from either thymusatlasdataprivate or thymusatlasdatapublic.
-#'
-#' If you have both available, thymusatlasdataprivate is preferred.
-#'
+
+#' Get thymus atlas sample metadata.
+#' 
 #' @export
 #'
-# load_thymus_profiling_data = function( ..., verbose = F ){
-#   
-#   
-#   #Try private 
-#   private = tryCatch( thymusatlasdataprivate::load_maehrlab_private_data( ... ), 
-#                        error = function(e) my_err(package_tried = "thymusatlasdataprivate"))
-#   if( !identical( private, "not_available" )){
-#     return(private)
-#   } 
-#   
-#   #Try public 
-#   public = tryCatch( thymusatlasdatapublic::load_thymus_profiling_data( ... ), 
-#                      error = function(e) my_err(package_tried = "thymusatlasdatapublic"))
-#   if( !identical( private, "not_available" )){
-#     return(public)
-#   }  
-#   
-#   #Give up
-#   stop(paste0("You may need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n", 
-#               "the Maehr lab data. If they are installed, use verbose=T or call them directly to see the error. \n"))
-# 
-# }
+get_metadata = function() {
+  PATH_TO_METADATA_PRIVATE = file.path( "~", "Dropbox", "2016JULY07scRNAseq", "data", "DROPseq_stats_working.csv" )
+  if( exists("get_metadata_path") ){
+    read.csv( get_metadata_path(), stringsAsFactors = F )
+  } else if( file.exists( PATH_TO_METADATA_PRIVATE ) ){
+    read.csv( PATH_TO_METADATA_PRIVATE, stringsAsFactors = F )
+  } else {
+    stop("Please define a function get_metadata_path that returns a length-1 character vector containing the path to the metadata. If you are reproducing the Immunity paper, the metadata CSV and a function pointing to it should be included in analysis repo. Make sure the code defining the function has been run. You may have to adjust paths depending on where you saved all the data.")
+  }
+}
+
+## ---- eval = F-----------------------------------------------------------
+## 
+## 
+## #' Print errors or warnings but return a predictable 'not_available'.
+## #'
+## #' Helps wrap calls to thymusatlasdataprivate and thymusatlasdatapublic in tryCatch blocks.
+## #'
+## # my_err = function( e, package_tried, err_or_warn = "Error", verbose = T ){
+## #   if(verbose){
+## #     cat(err_or_warn, " received while trying ", package_tried, "::get_metadata:\n", e, "\n")
+## #   }
+## #   return("not_available")
+## # }
+## 
+## #' Get metadata from the thymusatlasdataprivate or thymusatlasdatapublic packages.
+## #'
+## #' If you have both installed, thymusatlasdataprivate is preferred.
+## #'
+## #' @export
+## #'
+## # function( ..., verbose = F ){
+## #   public  = tryCatch( thymusatlasdatapublic::get_metadata( ... ),
+## #                      error = function(e) my_err(package_tried = "thymusatlasdatapublic", verbose = verbose))
+## #   private = tryCatch( thymusatlasdataprivate::get_metadata( ... ),
+## #                      error = function(e) my_err(package_tried = "thymusatlasdatapublic", verbose = verbose))
+## #   if( identical(public, "not_available" ) && identical(private, "not_available" )){
+## #     stop(paste0("You may need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n",
+## #                 "the Maehr lab metadata. If they are installed, use verbose=T or call them directly to see the error. \n"))
+## #   } else if( !identical( private, "not_available" )){
+## #     return(private)
+## #   } else {
+## #     return(public)
+## #   }
+## # }
+## 
+## #' Get digital gene expression matrices from either thymusatlasdataprivate or thymusatlasdatapublic.
+## #'
+## #' If you have both available, thymusatlasdataprivate is preferred.
+## #'
+## #' @export
+## #'
+## # load_thymus_profiling_data = function( ..., verbose = F ){
+## #
+## #
+## #   #Try private
+## #   private = tryCatch( thymusatlasdataprivate::load_maehrlab_private_data( ... ),
+## #                        error = function(e) my_err(package_tried = "thymusatlasdataprivate"))
+## #   if( !identical( private, "not_available" )){
+## #     return(private)
+## #   }
+## #
+## #   #Try public
+## #   public = tryCatch( thymusatlasdatapublic::load_thymus_profiling_data( ... ),
+## #                      error = function(e) my_err(package_tried = "thymusatlasdatapublic"))
+## #   if( !identical( private, "not_available" )){
+## #     return(public)
+## #   }
+## #
+## #   #Give up
+## #   stop(paste0("You may need to install either thymusatlasdatapublic or thymusatlasdataprivate to get access to\n",
+## #               "the Maehr lab data. If they are installed, use verbose=T or call them directly to see the error. \n"))
+## #
+## # }
 
