@@ -2,7 +2,7 @@
 % Please edit documentation in R/exploratory_pipeline.R
 \name{KMeansGapStat}
 \alias{KMeansGapStat}
-\title{Imitate OldSeurat::FindClusters but using k-means with the gap statistic.}
+\title{Imitate Seurat::FindClusters but using k-means with the gap statistic.}
 \usage{
 KMeansGapStat(dge, nclust = NULL, pc.use = 1:25, iter.max = 20)
 }
@@ -14,5 +14,5 @@ KMeansGapStat(dge, nclust = NULL, pc.use = 1:25, iter.max = 20)
 \item{pc.use}{}
 }
 \description{
-Imitate OldSeurat::FindClusters but using k-means with the gap statistic.
+Imitate Seurat::FindClusters but using k-means with the gap statistic.
 }

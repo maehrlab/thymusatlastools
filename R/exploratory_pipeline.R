@@ -27,7 +27,7 @@ var_gene_select = function( dge, results_path, test_mode = F,
   # # Need to do this to initialize @mean.var even if not going to use those cutoffs
   if(is.null(log_expr_cutoff)){log_expr_cutoff = 0}
   if(is.null(excess_var_cutoff)){excess_var_cutoff = 0}
-  dge = OldSeurat::MeanVarPlot( dge, x.low.cutoff = log_expr_cutoff, y.cutoff = excess_var_cutoff)
+  dge = Seurat::MeanVarPlot( dge, x.low.cutoff = log_expr_cutoff, y.cutoff = excess_var_cutoff)
   if(method == "seurat"){
     # Variable gene selection method 1 -- Seurat built-in
     dge@mean.var$avg_log_exp = dge@mean.var$data.x
@@ -197,7 +197,7 @@ add_cc_score = function(dge, method = "average"){
     if ( !"species" %in% AvailableData( dge ) ){
       warning(paste("No species metadata present. Assuming mouse, but please add species metadata.\n", 
                     "Try `object = add_maerhlab_metadata(object, 'species')`.\n" ) )
-    } else if( any( OldSeurat::FetchData(dge, "species")[[1]] == "human" ) ){
+    } else if( any( Seurat::FetchData(dge, "species")[[1]] == "human" ) ){
       human_ortho = unlist( lapply( X = macosko_cell_cycle_genes[, phase], 
                                     FUN = get_ortholog, from = "human", to = "mouse" ) )
       human_ortho = human_ortho[!is.na( human_ortho )]
@@ -217,14 +217,14 @@ add_cc_score = function(dge, method = "average"){
   }
   scores_df = data.frame(t(scores_mat))
   
-  dge = OldSeurat::AddMetaData(dge, scores_df)
+  dge = Seurat::AddMetaData(dge, scores_df)
   return( dge )
 }
 
 ## ------------------------------------------------------------------------
 #' @export
 do_dim_red = function( dge, pc.use, ... ){
-  dge = OldSeurat::PCA( dge, do.print = F, pcs.store = max( pc.use ) )
+  dge = Seurat::PCA( dge, do.print = F, pcs.store = max( pc.use ) )
   if( test_mode ){
     pc.use = 1:4
     # # Solve problem downstream where t-SNE can't handle exact duplicates
@@ -232,7 +232,7 @@ do_dim_red = function( dge, pc.use, ... ){
       dge@pca.rot = dge@pca.rot + matrix( 0.1*rnorm( prod( dim( dge@pca.rot ) ) ), nrow = nrow( dge@pca.rot ) )
     }
   } 
-  dge = OldSeurat::RunTSNE( dge, dims.use = pc.use, ... )
+  dge = Seurat::RunTSNE( dge, dims.use = pc.use, ... )
   return( dge )
 }
  
@@ -330,17 +330,17 @@ cluster_wrapper = function(dge, results_path, test_mode,
   dir.create.nice( file.path( results_path, method ) )
   for(my_resolution in granularities){
     if(method == "DBSCAN"){
-      dge = OldSeurat::DBClustDimension(dge, reduction.use="tsne", G.use=my_resolution, set.ident = T)
+      dge = Seurat::DBClustDimension(dge, reduction.use="tsne", G.use=my_resolution, set.ident = T)
     } else {
       atat( method == "SNN" )
-      dge = OldSeurat::FindClusters(dge, 
+      dge = Seurat::FindClusters(dge, 
                                  pc.use = pc.use, 
                                  resolution = my_resolution, 
                                  print.output = F)
       ident_no_1 = dge@ident %>% as.character %>% as.numeric
       ident_no_1[ ident_no_1==1 ] = max( ident_no_1 ) + 1
       ident_no_1 = as.character( ident_no_1 )
-      dge = OldSeurat::SetIdent(dge, ident.use = ident_no_1)
+      dge = Seurat::SetIdent(dge, ident.use = ident_no_1)
     }      
     tsne_colored( dge, file.path(results_path, method), colour = "ident",
                   fig_name = paste0("res=", my_resolution, ".pdf"))
@@ -351,7 +351,7 @@ cluster_wrapper = function(dge, results_path, test_mode,
   if(test_mode & 1==length(levels(dge@ident))){
     warning("In test mode, got 1 cluster. 
             Randomly splitting into 2 clusters to facilitate debugging of differential expression code.")
-    dge = OldSeurat::SetIdent(dge, ident.use = sample(1:2, size = length(dge@ident), replace = T) %>% as.character)
+    dge = Seurat::SetIdent(dge, ident.use = sample(1:2, size = length(dge@ident), replace = T) %>% as.character)
   }
   cluster_summary(dge, results_path)
   return(dge)
@@ -381,7 +381,7 @@ cluster_summary = function(dge, results_path){
 #' @export
 compare_views = function(dge, results_path, comparator_dge, dge_name, comparator_name){
   figname = paste0("embedding=", dge_name, "|colors=", comparator_name, ".pdf")
-  dge = OldSeurat::AddMetaData( dge, metadata = comparator_dge@ident[dge@cell.names] , col.name = "other_id" )
+  dge = Seurat::AddMetaData( dge, metadata = comparator_dge@ident[dge@cell.names] , col.name = "other_id" )
   ggsave(file.path(results_path, figname),
          custom_feature_plot(dge, colour = "other_id"),
          width = 5.5, height = 5)
@@ -510,11 +510,11 @@ are_compatible = function( dge, marker_info, ident.use ){
 fix_cluster_order = function(  dge, marker_info, ident.use, desired_cluster_order = NULL ){
   if( is.null( desired_cluster_order ) ){
     warning( "No cluster order specified. Ordering clusters stupidly." )
-    desired_cluster_order = union( OldSeurat::FetchData( dge, ident.use )[[1]], 
+    desired_cluster_order = union( Seurat::FetchData( dge, ident.use )[[1]], 
                                    marker_info$cluster )
   }
   atae( typeof( desired_cluster_order ), "character" )
-  all_celltypes = union( OldSeurat::FetchData(dge, ident.use)[[1]], marker_info$cluster )
+  all_celltypes = union( Seurat::FetchData(dge, ident.use)[[1]], marker_info$cluster )
   missing = setdiff( all_celltypes, desired_cluster_order)
   extra   = setdiff( desired_cluster_order, all_celltypes)
   if( length( missing ) > 0 ){
@@ -535,7 +535,7 @@ fix_cluster_order = function(  dge, marker_info, ident.use, desired_cluster_orde
 
 
 ## ------------------------------------------------------------------------
-#' Make a heatmap with one column for each cluster in `unique( OldSeurat::FetchData(dge, ident.use)[[1]])` and 
+#' Make a heatmap with one column for each cluster in `unique( Seurat::FetchData(dge, ident.use)[[1]])` and 
 #' one row for every gene in `genes_in_order`. 
 #' 
 #' @param dge Seurat object
@@ -552,7 +552,7 @@ fix_cluster_order = function(  dge, marker_info, ident.use, desired_cluster_orde
 #'
 #' If the cluster's expression values are stored in `x`, then `aggregator(x)` gets (normalized and) plotted.
 #' Optional parameter `desired_cluster_order` gets coerced to character. It should be a subset of 
-#' `unique(OldSeurat::FetchData(dge, ident.use))` (no repeats).
+#' `unique(Seurat::FetchData(dge, ident.use))` (no repeats).
 #'
 #' @export
 #'
@@ -596,7 +596,7 @@ make_heatmap_for_table = function( dge, genes_in_order,
   }
   
   # # Get cluster mean expression for each gene and row normalize
-  logscale_expression = OldSeurat::FetchData(dge, vars.all = genes_in_order)[names( ident ), ]
+  logscale_expression = Seurat::FetchData(dge, vars.all = genes_in_order)[names( ident ), ]
   expression_by_cluster = aggregate_nice( x = logscale_expression, by = list( ident ), FUN = aggregator )
   # The net result of this conditional should be to preserve the dimensions.
   dim_old = dim(expression_by_cluster)
@@ -817,7 +817,7 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
 
     # # remove cc variation, or whatever is in regress_out 
     if( length( regress_out ) > 0 ){
-      dge = OldSeurat::RegressOut( object = dge, 
+      dge = Seurat::RegressOut( object = dge, 
                                    latent.vars = regress_out )
     }
     
@@ -835,10 +835,10 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
     }
     
     # Reduce dimension and cluster cells
-    dge = OldSeurat::PCAFast(dge, pc.genes = dge@var.genes, pcs.compute = param_row[["num_pc"]],
+    dge = Seurat::PCAFast(dge, pc.genes = dge@var.genes, pcs.compute = param_row[["num_pc"]],
                              do.print = F, pcs.print = F ) 
     pc.use = 1:param_row[["num_pc"]]
-    dge = OldSeurat::RunTSNE(dge, dims.use = pc.use, do.fast = T, check_duplicates = FALSE) 
+    dge = Seurat::RunTSNE(dge, dims.use = pc.use, do.fast = T, check_duplicates = FALSE) 
     dge = cluster_wrapper(dge, results_path = rp_mini, test_mode = test_mode, 
                           method = param_row[["clust_method"]],
                           granularities_as_string = param_row[["clust_granularities_as_string"]],
@@ -867,7 +867,7 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
 #' @export
 DESummaryFast = function( dge, ident.use = "ident", aggregator = mean, genes_per_cluster = NULL ){
   cat("Aggregating...\n")
-  cluster_means = aggregate_nice( t(as.matrix(dge@data)), by = OldSeurat::FetchData(dge, ident.use), FUN = aggregator ) 
+  cluster_means = aggregate_nice( t(as.matrix(dge@data)), by = Seurat::FetchData(dge, ident.use), FUN = aggregator ) 
   cat("Done.\n")
   nwm = function(x)(names(which.max(x)))
   cluster = apply( cluster_means, 2, nwm ) 
@@ -894,7 +894,7 @@ DESummaryFast = function( dge, ident.use = "ident", aggregator = mean, genes_per
 
 
 
-#' Imitate OldSeurat::FindClusters but using k-means with the gap statistic.
+#' Imitate Seurat::FindClusters but using k-means with the gap statistic.
 #'
 #' @param dge Seurat object
 #' @param nclust NULL by default, so chosen via gap statistic.
@@ -903,7 +903,7 @@ DESummaryFast = function( dge, ident.use = "ident", aggregator = mean, genes_per
 #' @export
 KMeansGapStat = function( dge, nclust = NULL, pc.use = 1:25, iter.max = 20 ){
 
-  kmeans_features = OldSeurat::FetchData( dge, paste0("PC", pc.use) )
+  kmeans_features = Seurat::FetchData( dge, paste0("PC", pc.use) )
 
   # Set num clusters via gap statistic
   if( is.null( nclust ) ){
@@ -915,8 +915,8 @@ KMeansGapStat = function( dge, nclust = NULL, pc.use = 1:25, iter.max = 20 ){
   
   # Cluster and add output to Seurat object
   kmod = kmeans( kmeans_features, centers = nclust, iter.max = iter.max )
-  dge %<>% OldSeurat::AddMetaData( setNames( kmod$cluster, rownames(dge@data.info) ), "kmeans_cluster" )
-  dge %<>% OldSeurat::SetIdent( ident.use = kmod$cluster )
+  dge %<>% Seurat::AddMetaData( setNames( kmod$cluster, rownames(dge@data.info) ), "kmeans_cluster" )
+  dge %<>% Seurat::SetIdent( ident.use = kmod$cluster )
   return( dge )
 }
 
@@ -953,7 +953,7 @@ RefineVariableGenes = function( dge, log_fc = 1, eligible_genes = NULL ){
 #' @param eligible_genes Restricts the set of genes used. Try setting it to `get_mouse_tfs()`.
 #' @param maxiter Iteration limit. Issues warning if hit.
 #' @param tol If the list changes by less than this many genes (added + removed), it stops.
-#' @param cluster_method A user-provided function to re-estimate clusters, modeled off OldSeurat::FindClusters. 
+#' @param cluster_method A user-provided function to re-estimate clusters, modeled off Seurat::FindClusters. 
 #'      It should take a Seurat object as the first arg.
 #'      It should also accept a `pc.use` input (even if you just discard it).
 #'      For your convenience, the principal components get updated before this function is called.
@@ -966,7 +966,7 @@ RefineVariableGenes = function( dge, log_fc = 1, eligible_genes = NULL ){
 ExploreIteratively = function( dge, log_fc = 0.25, 
                                eligible_genes = NULL,
                                maxiter = 5, tol = 10, verbose = T,
-                               cluster_method = function(...) OldSeurat::FindClusters(..., print.output = F),
+                               cluster_method = function(...) Seurat::FindClusters(..., print.output = F),
                                num_pc = 25, ... ){
   # Initialize genes
   if( 0==length( dge@var.genes ) ){

@@ -15,7 +15,7 @@ Imports: enrichR,
 	reshape,
 	cluster,
 	mgcv,
-    OldSeurat
+    Seurat (<= 1.5)
 Suggests: testthat
 License: All rights reserved.
 Encoding: UTF-8

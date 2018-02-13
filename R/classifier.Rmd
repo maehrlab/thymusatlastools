@@ -248,14 +248,14 @@ knn_classifier = function( dge_train, dge_test, ident.use = "ident",
 
 #' Train and save a penalized logistic regression classifier.
 #'
-#' Uses OldSeurat::FetchData(training_dge, vars.all = ident.use ) as class labels.
+#' Uses Seurat::FetchData(training_dge, vars.all = ident.use ) as class labels.
 #' Results (`glmnet` object) and training data (Seurat object) get
 #' saved into a subdirectory of `results_path`. 
 #' @export
 train_save_classifier = function(training_dge, results_path, ident.use = "cell_type", genes.use, do.save = F ){
   
   # # Get labels
-  training_labels = factor( vectorize_preserving_rownames ( OldSeurat::FetchData(training_dge, vars.all = ident.use ) ) )
+  training_labels = factor( vectorize_preserving_rownames ( Seurat::FetchData(training_dge, vars.all = ident.use ) ) )
 
   # # Get features
   genes.use = intersect( genes.use, rownames( training_dge@data ) )
@@ -370,10 +370,10 @@ wheel_plot = function( dge, results_path, mlr_mod = NULL, class_labels = NULL, f
   cell_positions = predictions %*% as.matrix( wheel_spokes[, c("x", "y")] )
   cell_positions = as.data.frame( cell_positions );   colnames( cell_positions ) = c( "x", "y" )
   if( !is.null( colour_by ) ){
-      cell_positions[[colour_by]] = OldSeurat::FetchData(dge, vars.all = colour_by)[ rownames( predictions ),  ] 
+      cell_positions[[colour_by]] = Seurat::FetchData(dge, vars.all = colour_by)[ rownames( predictions ),  ] 
   }
   if( !is.null( facet_by ) ){
-    cell_positions[[facet_by]] = OldSeurat::FetchData(dge, vars.all = facet_by )[ rownames( predictions ),  ] 
+    cell_positions[[facet_by]] = Seurat::FetchData(dge, vars.all = facet_by )[ rownames( predictions ),  ] 
   }
   
   # # Avoid possible namespace conflict between class_labels in model parameters and class_labels in test data

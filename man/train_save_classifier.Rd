@@ -8,7 +8,7 @@ train_save_classifier(training_dge, results_path, ident.use = "cell_type",
   genes.use, do.save = F)
 }
 \description{
-Uses OldSeurat::FetchData(training_dge, vars.all = ident.use ) as class labels.
+Uses Seurat::FetchData(training_dge, vars.all = ident.use ) as class labels.
 Results (`glmnet` object) and training data (Seurat object) get
 saved into a subdirectory of `results_path`.
 }

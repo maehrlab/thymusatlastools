@@ -19,7 +19,7 @@ This chunk sets up the file system and some functions to retrieve reference tabl
 
 PATH_TO_TABLES = file.path( "tables" ) 
 
-#' @import OldSeurat 
+#' @import Seurat 
 #' @import ggplot2 
 #' @import magrittr
 
