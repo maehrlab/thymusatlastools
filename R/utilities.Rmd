@@ -202,7 +202,12 @@ standardize = function( x, nonpar = F ){
 #' @export
 matrixify_preserving_rownames = function(x) matrix( x,  ncol = 1, dimnames = list( names( x  ), "") )
 #' @export
-vectorize_preserving_rownames = function(x, i = 1) { v = x[, i]; names(v) = rownames(x); atat(is.vector(v)); return(v) }
+vectorize_preserving_rownames = function(x, i = 1) { 
+  v = x[, i]
+  names(v) = rownames(x)
+  atat(is.vector(v) | is.factor(v)); 
+  return(v)
+}
 #' @export
 down_idx = function(x){ x[[1]] }
 #' @export
