@@ -159,54 +159,59 @@ SeuratMerge = function( dge1, dge2, preserve_ident = F,
 #'
 #' @export
 #'
-SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NULL, label = F, main = "Sample makeup by day", drop_levels = F ){
+SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday",
+                      do.test = FetchData(dge, "eday")[[1]] %>% unique %>% length %>% is_greater_than(1),
+                      col = NULL, label = F,
+                      main = "Sample makeup by day", drop_levels = F ){
   #### Testing
   # Test each cluster for a quadratic trend in pct by eday, weighted by the number of cells at each eday.
   # Assemble percentages for testing
-  pct_for_testing = FetchData( dge, c( ident.use, "orig.ident" )) %>% 
-    table %>% 
-    apply(2, percentify) %>% 
-    (reshape2::melt) %>% 
-    plyr::rename(c("value" = "percent")) 
-  ncells =  FetchData( dge, "orig.ident" ) %>% table 
-  
+  pct_for_testing = FetchData( dge, c( ident.use, "orig.ident" )) %>%
+    table %>%
+    apply(2, percentify) %>%
+    (reshape2::melt) %>%
+    plyr::rename(c("value" = "percent"))
+  ncells =  FetchData( dge, "orig.ident" ) %>% table
+
   # Fill in eday based on sample id
-  map_to_eday = setNames(get_metadata()$eday, 
-                         get_metadata()$Sample_ID %>% as.character ) 
-  
-  map_to_eday %<>% na.omit 
+  map_to_eday = setNames(get_metadata()$eday,
+                         get_metadata()$Sample_ID %>% as.character )
+
+  map_to_eday %<>% na.omit
   nm = names( map_to_eday )
   map_to_eday %<>% as.numeric
   names(map_to_eday) = nm
-  pct_for_testing$eday = map_to_eday[pct_for_testing$orig.ident %>% as.character] 
+  pct_for_testing$eday = map_to_eday[pct_for_testing$orig.ident %>% as.character]
   pct_for_testing$eday_sq = pct_for_testing$eday ^ 2
-  
+
   # Quadratic fit, weighted by day, tested against null model
   cell_types = unique(pct_for_testing[[ident.use]])
-  pvals = rep(1, length(cell_types))
-  names(pvals) = cell_types
-  for( cl in cell_types ){
-    this_cluster_data = subset( pct_for_testing, eval(parse(text = ident.use)) == cl )
-    mod = lm( data = this_cluster_data, formula = percent~eday + eday_sq, weights = ncells )
-    test_result = car::linearHypothesis(mod, c("eday = 0", "eday_sq = 0" ))
-    pvals[cl] = test_result$`Pr(>F)`[[2]]
+  if(do.test){
+    pvals = rep(1, length(cell_types))
+    names(pvals) = cell_types
+    for( cl in cell_types ){
+      this_cluster_data = subset( pct_for_testing, eval(parse(text = ident.use)) == cl )
+      mod = lm( data = this_cluster_data, formula = percent~eday + eday_sq, weights = ncells )
+      test_result = car::linearHypothesis(mod, c("eday = 0", "eday_sq = 0" ))
+      pvals[cl] = test_result$`Pr(>F)`[[2]]
+    }
   }
-  
+
   #### Plotting
   # Get percentages by facet
-  X = FetchData( dge, c( ident.use, facet_by )) %>% 
-    table %>% 
-    apply(2, percentify) %>% 
-    (reshape2::melt) %>% 
-    plyr::rename(c("value" = "percent")) 
+  X = FetchData( dge, c( ident.use, facet_by )) %>%
+    table %>%
+    apply(2, percentify) %>%
+    (reshape2::melt) %>%
+    plyr::rename(c("value" = "percent"))
   if( drop_levels ){
     X %<>% subset( percent != 0 )
   }
   facet_values = FetchData( dge, facet_by )[[1]]
   if(is.factor(facet_values) & !drop_levels){
     X[[facet_by]] %<>% factor(levels = levels(facet_values), ordered = T)
-  } 
-  
+  }
+
   # Position percentages decently
   X$at = 0
   X = X[order(X[[ident.use]]), ]
@@ -214,24 +219,29 @@ SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday", col = NUL
     idx = (X[[facet_by]] == facet_level)
     X[idx, "at"] = 100 - ( cumsum(X[idx, "percent"]) - X[idx, "percent"]/2 )
   }
-  
+
   # Pie charts require stat=identity and x=constant
-  p = ggplot(X) + ggtitle( main) + 
-    geom_bar( aes_string( y = "percent", x = "factor('')", fill = ident.use ), position = "stack", stat='identity' ) + 
-    coord_polar(theta = "y") + xlab("") + ylab("") + 
-    facet_wrap(facet_by, nrow = 1) + theme(axis.ticks = element_blank(), 
+  p = ggplot(X) + ggtitle( main) +
+    geom_bar( aes_string( y = "percent", x = "factor('')", fill = ident.use ), position = "stack", stat='identity' ) +
+    coord_polar(theta = "y") + xlab("") + ylab("") +
+    facet_wrap(facet_by, nrow = 1) + theme(axis.ticks = element_blank(),
                                            axis.text.y = element_blank(),
-                                           axis.text.x = element_blank()) 
+                                           axis.text.x = element_blank())
   if(!is.null(col)){p = p + scale_fill_manual( values = col ) }
   if( label ) { p = p + geom_text( aes( y = at, x = 1.5, label = percent ) ) }
-  p = p + 
+  if(do.test){
+    pval_text = paste0(" (", round(log10(pvals), 1), ")")
+  } else {
+    pval_text = ""
+  }
+  p = p +
     scale_fill_manual( name="Cell type (Log10 p)",
-                       values = col, 
+                       values = col,
                        breaks=cell_types,
-                       labels=paste0(cell_types, " (", round(log10(pvals), 1), ")"))
-  
+                       labels=paste0(cell_types, pval_text))
+
   return(p)
-} 
+}
 
 
 #' Test for markers flexibly from a Seurat object.
