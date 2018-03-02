@@ -384,8 +384,10 @@ load_thymus_profiling_data = function( sample_ids = "all",
       warning( "\n There are no records of these sample IDs: \n"); cat( missing ); cat("\n")
   }
   
-  # Keep only samples in both, preserving order of arguments. 
-  sample_ids = sample_ids[sample_ids %in% metadata$Sample_ID]
+  # Keep only samples in both
+  if( !identical( sample_ids, "all" ) ){
+    metadata = subset( metadata, Sample_ID %in% sample_ids)
+  }
   rownames(metadata) = metadata$Sample_ID
   metadata = metadata[sample_ids, ]
   
