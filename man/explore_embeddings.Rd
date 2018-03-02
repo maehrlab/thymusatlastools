@@ -4,41 +4,7 @@
 \alias{explore_embeddings}
 \title{Quickly explore many parameter settings}
 \usage{
-explore_embeddings(dge, results_path, all_params, test_mode = F,
-  whitelist = AvailableData(dge), blacklist = c(), knn_smooth_k = 0,
-  regress_out = thymusatlastools::get_macosko_cc_genes() \%>\% names,
-  PLOTFUN = function(dge, results_path) {     return() }, ...)
-}
-\arguments{
-\item{dge}{Seurat object.}
-
-\item{results_path}{}
-
-\item{all_params}{Dataframe specifying multiple runs of the pipeline. Must have these columns: 
-\itemize{
-\item "num_pc": integer. Number of principal components to use.
-\item "clust_method": Character. Each entry should be a valid input for the 'method' arg of 'cluster_wrapper'. (Currently 'SNN' or 'DBSCAN').
-\item "clust_granularities_as_string": Character. Comma-separated list of numbers to be used for G.use (if DBSCAN) or res (if SNN). Allows multiple clusterings based on the same PC list. 
-\item "excess_var_cutoff": Numeric. Params for variable gene selection. Units are in multiples of the local median coefficient of variation, i.e. 0.8 means a gene is included if it exceeds 80% of the local median of the CV, binning based on expression level.
-\item "log_expr_cutoff": Numeric. Genes below this expression level are excluded. Done by averaging the '@data' slot (so, log1p-scale expression).
-}}
-
-\item{test_mode}{If true, does a trial run on a small subset of the data.}
-
-\item{whitelist}{Everything not on this list is excluded.}
-
-\item{blacklist}{Genes to exclude. Typically nothing (default), but could be cell cycle genes (try 
-\code{ thymusatlastools::get_macosko_cc_genes() \%>\% Reduce(f=union) } or ribosomal 
-subunit genes. Make sure you get the species right!}
-
-\item{knn_smooth_k}{If <=0, no smoothing. If >0, fill scale.data using Wagner et al's knn smoothing method (followed by standardization).}
-
-\item{regress_out}{Covariates to regress out via Seurat::RegressOut. Defaults to the cell-cycle scores that are provided by thymusatlastools::add_cc_score.}
-
-\item{PLOTFUN}{A function for extra plotting with each set of parameters. 
-Should accept a Seurat object (first arg), a results path (second arg), and then anything else.}
-
-\item{...}{Passed to PLOTFUN.}
+explore_embeddings(dge, results_path, all_params, test_mode = F)
 }
 \description{
 Quickly explore many parameter settings

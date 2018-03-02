@@ -759,47 +759,16 @@ screen_receptor_ligand = function( is_expressed, results_path ){
 }
 
 ## ------------------------------------------------------------------------
-
 #' Quickly explore many parameter settings
-#'
-#' @param dge Seurat object.
-#' @param results_path 
-#' @param all_params Dataframe specifying multiple runs of the pipeline. Must have these columns: 
-#' \itemize{
-#' \item "num_pc": integer. Number of principal components to use.
-#' \item "clust_method": Character. Each entry should be a valid input for the 'method' arg of 'cluster_wrapper'. (Currently 'SNN' or 'DBSCAN').
-#' \item "clust_granularities_as_string": Character. Comma-separated list of numbers to be used for G.use (if DBSCAN) or res (if SNN). Allows multiple clusterings based on the same PC list. 
-#' \item "excess_var_cutoff": Numeric. Params for variable gene selection. Units are in multiples of the local median coefficient of variation, i.e. 0.8 means a gene is included if it exceeds 80% of the local median of the CV, binning based on expression level.
-#' \item "log_expr_cutoff": Numeric. Genes below this expression level are excluded. Done by averaging the '@data' slot (so, log1p-scale expression).
-#' }
-#' @param knn_smooth_k If <=0, no smoothing. If >0, fill scale.data using Wagner et al's knn smoothing method (followed by standardization).
-#' @param test_mode If true, does a trial run on a small subset of the data.
-#' @param whitelist Everything not on this list is excluded.
-#' @param blacklist Genes to exclude. Typically nothing (default), but could be cell cycle genes (try 
-#' \code{ thymusatlastools::get_macosko_cc_genes() \%>\% Reduce(f=union) } or ribosomal 
-#' subunit genes. Make sure you get the species right!
-#' @param regress_out Covariates to regress out via Seurat::RegressOut. Defaults to the cell-cycle scores that are provided by thymusatlastools::add_cc_score. 
-#' @param PLOTFUN A function for extra plotting with each set of parameters. 
-#' Should accept a Seurat object (first arg), a results path (second arg), and then anything else.
-#' @param ... Passed to PLOTFUN. 
-#'
 #' @export
-explore_embeddings = function( dge, results_path, all_params, test_mode = F, 
-                               whitelist = AvailableData(dge), 
-                               blacklist = c(), 
-                               knn_smooth_k = 0,
-                               regress_out = thymusatlastools::get_macosko_cc_genes() %>% names,
-                               PLOTFUN = function(dge, results_path){return()}, ... ){
+explore_embeddings = function(dge, results_path, all_params, test_mode = F){
   atat(is.data.frame( all_params ) )
-  dge %<>% FillNA
-  required_params = c( "num_pc", "clust_granularities_as_string",
-                       "excess_var_cutoff","log_expr_cutoff" )
+  required_params = c( "cc_method",
+                       "num_pc", 
+                       "clust_granularities_as_string",
+                       "plot_all_var_genes" )
   atat( all( required_params %in% names( all_params ) ) )
-
-  # # As a courtesy, automatically provide CC scores.
-  if( !all(regress_out %in% AvailableData(dge))){
-    dge %<>% add_cc_score()
-  }
+  atat( any( c( "excess_var_cutoff","log_expr_cutoff", "prop_genes_to_select" ) %in% names( all_params ) ) )
   
   # # Record the things you're gonna try
   dir.create.nice( results_path )
@@ -815,30 +784,30 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
     rp_mini = file.path(results_path, collapse_by_name( all_params[i,] ))
     dir.create.nice(rp_mini)
 
-    # # remove cc variation, or whatever is in regress_out 
-    if( length( regress_out ) > 0 ){
-      dge = Seurat::RegressOut( object = dge, 
-                                   latent.vars = regress_out )
+    # # remove cc variation
+    if( "extra_regressout" %in% names( param_row ) ){
+      extra_vars = trimws( strsplit( param_row[["extra_regressout"]], "," )[[1]] )
+    } else {
+      extra_vars = c()
     }
-    
-    # # select genes, confining to whitelist and excluding blacklist.
+    if(is.null(prev_param_row) || param_row[["cc_method"]] != prev_param_row[["cc_method"]]){
+      cc_scores_out = add_cc_score(dge, method = param_row[["cc_method"]])
+      dge = Seurat::RegressOut(object = cc_scores_out$dge, 
+                               latent.vars = c(cc_scores_out$cc_score_names, extra_vars))
+    }
+    # # select genes; do dim red; cluster cells
     dge = var_gene_select( dge, results_path = rp_mini, test_mode,
                            excess_var_cutoff   = param_row[["excess_var_cutoff"]],
-                           log_expr_cutoff     = param_row[["log_expr_cutoff"]] )
-    dge@var.genes %<>% intersect( whitelist )
-    dge@var.genes %<>% setdiff( blacklist )
-    
-    # knn smoothing based on Wagner et al's paper
-    # "K-nearest neighbor smoothing for high-throughput single-cell RNA-Seq data"
-    if(knn_smooth_k>0){
-      dge@scale.data = knn_smoother( dge %>% deseuratify_raw_data(), k = knn_smooth_k ) %>% apply(2, standardize)
+                           log_expr_cutoff     = param_row[["log_expr_cutoff"]],
+                           prop_genes_to_select = param_row[["prop_genes_to_select"]],
+                           method = param_row[["var_gene_method"]])
+    if( !is.null( param_row[[ "TF_only" ]] ) && param_row[[ "TF_only" ]] ){
+      dge@var.genes %<>% intersect(get_mouse_tfs())
     }
-    
-    # Reduce dimension and cluster cells
-    dge = Seurat::PCAFast(dge, pc.genes = dge@var.genes, pcs.compute = param_row[["num_pc"]],
-                             do.print = F, pcs.print = F ) 
+
+    dge = Seurat::PCA(dge, pc.genes = dge@var.genes, do.print = F) 
     pc.use = 1:param_row[["num_pc"]]
-    dge = Seurat::RunTSNE(dge, dims.use = pc.use, do.fast = T, check_duplicates = FALSE) 
+    dge = Seurat::RunTSNE(dge, dims.use = pc.use, do.fast = T) 
     dge = cluster_wrapper(dge, results_path = rp_mini, test_mode = test_mode, 
                           method = param_row[["clust_method"]],
                           granularities_as_string = param_row[["clust_granularities_as_string"]],
@@ -847,13 +816,27 @@ explore_embeddings = function( dge, results_path, all_params, test_mode = F,
     # # save plots and summaries 
     misc_summary_info( dge, results_path = rp_mini)
     saveRDS( dge, file.path( rp_mini, "dge.data") ) 
-    top_genes_by_pc(   dge, results_path = rp_mini, test_mode, num_pc = param_row[["num_pc"]])
-    PLOTFUN( dge, rp_mini, ... )
+    
+    top_genes_by_pc(   dge, results_path = rp_mini, test_mode)
+    fm = param_row[["find_markers_thresh"]]
+    if( !is.null( fm ) ){
+      de_genes = find_de(dge, results_path = rp_mini, ident.use = "ident", thresh.use = fm )
+      top_markers = get_top_de_genes(de_genes, results_path = rp_mini, 
+                                     test_mode = test_mode, 
+                                     top_n = 10, thresh_df = NULL)
+      save_feature_plots(dge, results_path = rp_mini, gene_list = top_markers$gene, gene_list_name = "top_markers")
+      # save_heatmap(dge, results_path = rp_mini, marker_info = de_genes,    main = "heatmap_all_de_genes")
+      save_heatmap(dge, results_path = rp_mini, marker_info = top_markers, main = "heatmap_top_markers")
+    }
+    #save_feature_plots(dge, results_path = rp_mini)
+    pavg = param_row[["plot_all_var_genes"]]
+    if( !is.null( pavg ) && pavg  ){
+      save_feature_plots(dge, results_path = rp_mini, gene_list = dge@var.genes, gene_list_name = "var_genes")
+    }
     prev_param_row = param_row
   }
   return(dge)
 }
-
 
 ## ------------------------------------------------------------------------
 
