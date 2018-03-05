@@ -763,7 +763,17 @@ screen_receptor_ligand = function( is_expressed, results_path ){
 #' @export
 explore_embeddings = function(dge, results_path, all_params, test_mode = F){
   atat(is.data.frame( all_params ) )
-  required_params = c( "cc_method",
+  if(is.null(all_params[["var_gene_method"]])){
+    all_params[["var_gene_method"]] = "seurat"
+  }
+  if(is.null(all_params[["cc_method"]])){
+    all_params[["cc_method"]] = "average"
+  }
+  if(is.null(all_params[["plot_all_var_genes"]])){
+    all_params[["plot_all_var_genes"]] = FALSE
+  }
+  required_params = c( "var_gene_method",
+                       "cc_method",
                        "num_pc", 
                        "clust_granularities_as_string",
                        "plot_all_var_genes" )
@@ -791,9 +801,9 @@ explore_embeddings = function(dge, results_path, all_params, test_mode = F){
       extra_vars = c()
     }
     if(is.null(prev_param_row) || param_row[["cc_method"]] != prev_param_row[["cc_method"]]){
-      cc_scores_out = add_cc_score(dge, method = param_row[["cc_method"]])
+      dge = add_cc_score(dge, method = param_row[["cc_method"]])
       cc_score_names = get_macosko_cc_genes() %>% colnames
-      dge = Seurat::RegressOut(object = cc_scores_out, 
+      dge = Seurat::RegressOut(object = dge, 
                                latent.vars = c(cc_score_names, extra_vars))
     }
     # # select genes; do dim red; cluster cells
