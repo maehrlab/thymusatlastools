@@ -5,7 +5,7 @@
 \title{Make small-multiple pie charts.}
 \usage{
 SeuratPie(dge, ident.use = "cell_type", facet_by = "eday",
-  do.test = FetchData(dge, "eday")[[1]] \%>\% unique \%>\% length \%>\%
+  do.test = FetchDataZeroPad(dge, "eday")[[1]] \%>\% unique \%>\% length \%>\%
   is_greater_than(1), col = NULL, label = F,
   main = "Sample makeup by day", drop_levels = F)
 }
