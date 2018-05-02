@@ -163,7 +163,8 @@ SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday",
                       do.test = FetchDataZeroPad(dge, "eday")[[1]] %>% unique %>% length %>% is_greater_than(1),
                       col = NULL, label = F,
                       main = "Sample makeup by day", drop_levels = F ){
-  if( FetchData(dge, ident.use)[[1]] %>% unique %>% length < 2 ){
+  cell_types = FetchData(dge, ident.use)[[1]] %>% unique 
+  if( length(cell_types) < 2 ){
     stop("\n SeuratPie cannot handle cases with only one level in ident.use.\n")
   }
   
@@ -191,7 +192,6 @@ SeuratPie = function( dge, ident.use = "cell_type", facet_by = "eday",
     pct_for_testing$eday_sq = pct_for_testing$eday ^ 2
 
     # Quadratic fit, weighted by day, tested against null model
-    cell_types = unique(pct_for_testing[[ident.use]])
     pvals = rep(1, length(cell_types))
     names(pvals) = cell_types
     for( cl in cell_types ){
