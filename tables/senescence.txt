@@ -1,1 +1,0 @@
-"##From Althubiti et al Cell Death and Disease (2014) 5, e1528; doi:10.1038/cddis.2014.489"		Protein	human_symbol	mouse_symbolDEP1	PTPRJ	PtprjNTAL	LAT2	Lat2EBP50	SLC9A3	Slc9a3STX4	STX4	Stx4aVAMP3	VAMP3	Vamp3ARMCX3	ARMCX3	Armcx3B2MG	B2M	B2mLANCL1	LANCL1	Lancl1VPS26A	VPS26A	Vps26aPLD3	PLD3	Pld3
